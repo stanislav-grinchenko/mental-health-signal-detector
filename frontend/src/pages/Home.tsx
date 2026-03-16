@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { Heart, Sparkles } from "lucide-react";
 
 export default function Home() {

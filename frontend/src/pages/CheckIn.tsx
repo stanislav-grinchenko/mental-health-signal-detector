@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { Clock, Check, X, Calendar, Coffee, Moon } from "lucide-react";
 
 export default function CheckIn() {
