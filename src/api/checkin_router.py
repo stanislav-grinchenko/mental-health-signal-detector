@@ -6,6 +6,8 @@ Phase 2 : "Comment vas-tu ce matin ?"
 from fastapi import APIRouter, HTTPException
 from loguru import logger
 
+from src.api.dependencies import get_model
+from src.training.predict import predict
 from src.checkin.schemas import CheckInRequest, CheckInResponse
 from src.checkin.engine import build_response
 
@@ -29,9 +31,6 @@ def checkin_endpoint(request: CheckInRequest):
 
     if request.text and request.text.strip():
         try:
-            from src.api.dependencies import get_model
-            from src.training.predict import predict
-
             model = get_model("baseline")
             result = predict(request.text, model=model, model_type="baseline")
             text_score = result["score_distress"]
