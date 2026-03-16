@@ -39,7 +39,7 @@ def translate_to_english(text: str, source_lang: str) -> str:
     if source_lang == "en":
         return text
     try:
-        from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
+        from concurrent.futures import ThreadPoolExecutor
 
         from deep_translator import GoogleTranslator
 

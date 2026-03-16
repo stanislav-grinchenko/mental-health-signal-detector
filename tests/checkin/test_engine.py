@@ -6,7 +6,6 @@ Couvre le plancher de sécurité EMOJI_FLOOR :
 - 😔 (tristesse) → jamais en dessous de YELLOW, même si le score NLP est vert
 - Emojis neutres/positifs → niveau determiné par le score uniquement
 """
-import pytest
 from src.checkin.engine import compute_score, get_level, build_response, DistressLevel
 
 

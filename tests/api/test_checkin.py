@@ -47,7 +47,7 @@ def test_checkin_text_only_nlp_fallback(client):
 
 def test_checkin_emoji_safety_floor_red(client):
     """😢 → niveau red garanti même si le NLP retourne un score faible."""
-    with patch("src.api.checkin_router.get_model") as mock_model, \
+    with patch("src.api.checkin_router.get_model"), \
          patch("src.api.checkin_router.predict") as mock_predict:
         mock_predict.return_value = {
             "score_distress": 0.1,  # NLP optimiste
@@ -60,7 +60,7 @@ def test_checkin_emoji_safety_floor_red(client):
 
 def test_checkin_emoji_safety_floor_yellow(client):
     """😔 → niveau minimum yellow même si le NLP retourne un score vert."""
-    with patch("src.api.checkin_router.get_model") as mock_model, \
+    with patch("src.api.checkin_router.get_model"), \
          patch("src.api.checkin_router.predict") as mock_predict:
         mock_predict.return_value = {
             "score_distress": 0.05,  # NLP très optimiste
