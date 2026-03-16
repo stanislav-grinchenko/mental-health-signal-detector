@@ -1,12 +1,33 @@
-import json
-import os
 from pathlib import Path
-from typing import Optional
 
 import kagglehub
 import pandas as pd
 from kaggle.api.kaggle_api_extended import KaggleApi
-from skimage import data_dir
+
+
+DATA_FILENAME = "reddit_depression_dataset.csv"
+
+
+def _get_project_data_dir() -> Path:
+    """Resolve the data directory independently from the current working directory."""
+    current_file = Path(__file__).resolve()
+
+    # Prefer a location that already contains the target dataset file.
+    for parent in current_file.parents:
+        candidate = parent / "data"
+        if (candidate / DATA_FILENAME).exists():
+            return candidate
+
+    # Fallback to the first existing "data" directory found while walking up.
+    for parent in current_file.parents:
+        candidate = parent / "data"
+        if candidate.exists():
+            return candidate
+
+    # Last resort: create a data directory at the project level.
+    fallback = current_file.parents[2] / "data"
+    fallback.mkdir(parents=True, exist_ok=True)
+    return fallback
 
 def download_data() -> None:
     """Load the dataset from the Kaggle API."""
@@ -14,18 +35,20 @@ def download_data() -> None:
     api = KaggleApi()
     api.authenticate()
 
-    data_dir = os.path.abspath("../../data")
-    expected_file = os.path.join(data_dir, "reddit_depression_dataset.csv")
+    data_dir = _get_project_data_dir()
+    expected_file = data_dir / DATA_FILENAME
 
-    if os.path.exists(expected_file):
-        path = data_dir
+    if expected_file.exists():
         print("Dataset déjà téléchargé, téléchargement ignoré.")
     else:
-        path = kagglehub.dataset_download("rishabhkausish/reddit-depression-dataset", output_dir=data_dir)
+        kagglehub.dataset_download(
+            "rishabhkausish/reddit-depression-dataset",
+            output_dir=str(data_dir),
+        )
         print("Dataset téléchargé.")
 
 def load_data() -> pd.DataFrame:
-    df = pd.read_csv("../../data/reddit_depression_dataset.csv")
+    df = pd.read_csv(_get_project_data_dir() / DATA_FILENAME)
     return df
 
 def clean_data(df: pd.DataFrame) -> pd.DataFrame:
