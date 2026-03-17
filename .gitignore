@@ -57,3 +57,4 @@ artifacts/
 docker/.env
 
 claude/
+.kaggle/
