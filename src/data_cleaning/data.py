@@ -5,8 +5,8 @@ from typing import Optional
 
 import kagglehub
 import pandas as pd
+import src.common.config as config
 from kaggle.api.kaggle_api_extended import KaggleApi
-from skimage import data_dir
 
 def download_data() -> None:
     """Load the dataset from the Kaggle API."""
@@ -14,7 +14,7 @@ def download_data() -> None:
     api = KaggleApi()
     api.authenticate()
 
-    data_dir = os.path.abspath("../../data")
+    data_dir = config.DATA_DIR
     expected_file = os.path.join(data_dir, "reddit_depression_dataset.csv")
 
     if os.path.exists(expected_file):
@@ -25,7 +25,7 @@ def download_data() -> None:
         print("Dataset téléchargé.")
 
 def load_data() -> pd.DataFrame:
-    df = pd.read_csv("../../data/reddit_depression_dataset.csv")
+    df = pd.read_csv(config.DATA_DIR + "/reddit_depression_dataset.csv")
     return df
 
 def clean_data(df: pd.DataFrame) -> pd.DataFrame:
@@ -49,6 +49,10 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     df["title"] = text
     df.drop(columns=["Unnamed: 0", "body", "subreddit", "upvotes",
                      "created_utc", "num_comments"], inplace=True)
+    
+    df.dropna(inplace=True)
+    df = balance_classes(df, label_col="label")
+    
     return df
 
 def balance_classes(df, label_col, random_state=42):
@@ -58,7 +62,7 @@ def balance_classes(df, label_col, random_state=42):
     
     for label in class_counts.index:
         label_df = df[df[label_col] == label]
-        balanced_label_df = label_df.sample(min_count, random_state=42)
+        balanced_label_df = label_df.sample(min_count, random_state=random_state)
         balanced_df = pd.concat([balanced_df, balanced_label_df])
     
     return balanced_df.sample(frac=1, random_state=random_state).reset_index(drop=True)

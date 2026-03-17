@@ -55,3 +55,6 @@ artifacts/
 
 # Docker
 docker/.env
+
+claude/
+.kaggle/
