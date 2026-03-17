@@ -12,13 +12,26 @@ from src.common.config import get_settings
 from src.common.language import prepare_text
 from src.training.preprocess import clean_text
 
+# Répertoire de confiance pour les modèles — protège contre le path traversal
+_MODELS_DIR = Path("models").resolve()
+
+
+def _safe_load_joblib(path: Path):
+    """Charge un fichier joblib uniquement s'il est dans le répertoire de confiance."""
+    resolved = path.resolve()
+    if not str(resolved).startswith(str(_MODELS_DIR)):
+        raise ValueError(f"Chemin de modèle non autorisé : {resolved}")
+    if not resolved.exists():
+        raise FileNotFoundError(f"Fichier modèle introuvable : {resolved}")
+    return joblib.load(resolved)
+
 
 def load_model(model_type: str = "baseline"):
     settings = get_settings()
     if model_type == "baseline":
-        joblib_path = Path("models/baseline.joblib")
-        path = joblib_path if joblib_path.exists() else Path("models/baseline.pkl")
-        return joblib.load(path)
+        joblib_path = _MODELS_DIR / "baseline.joblib"
+        path = joblib_path if joblib_path.exists() else _MODELS_DIR / "baseline.pkl"
+        return _safe_load_joblib(path)
     elif model_type == "distilbert":
         from transformers import AutoTokenizer, AutoModelForSequenceClassification
         tokenizer = AutoTokenizer.from_pretrained(settings.model_path)

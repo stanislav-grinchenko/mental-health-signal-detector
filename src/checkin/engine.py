@@ -148,7 +148,9 @@ def build_response(
 
     # --- PRIORITE 1 : detection CRITICAL ---
     if check_critical(text):
-        logger.warning(f"CRITICAL detecte : text='{text[:60] if text else ''}'")
+        import hashlib
+        text_hash = hashlib.sha256((text or "").encode()).hexdigest()[:12]
+        logger.warning(f"CRITICAL detecte : text_hash={text_hash} len={len(text or '')}")
         return {
             "level":      DistressLevel.CRITICAL,
             "score":      1.0,

@@ -4,10 +4,17 @@ Phase 2 — Mental Health Signal Detector
 """
 
 import os
+import re
 import requests
 import gradio as gr
 
-API_URL = os.getenv("API_URL", "http://localhost:8000")
+_raw_url = os.getenv("API_URL", "http://localhost:8000")
+_normalized_url = _raw_url.rstrip("/")
+# Autorise uniquement http(s)://host:port — bloque les redirections internes (SSRF)
+if not re.fullmatch(r"https?://[\w.\-]+(:\d+)?", _normalized_url):
+    API_URL = "http://localhost:8000"
+else:
+    API_URL = _normalized_url
 
 LEVEL_ICONS = {"green": "✅", "yellow": "💛", "red": "🆘"}
 

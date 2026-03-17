@@ -34,6 +34,7 @@ python-dotenv==1.0.1
 pyyaml==6.0.1
 loguru==0.7.2
 pillow>=12.1.1            # CVE-2026-25990
+slowapi>=0.1.9            # Rate limiting pour FastAPI
 
 # Langue
 langdetect==1.0.9

@@ -4,8 +4,17 @@ from pydantic import BaseModel, Field
 
 
 class CheckInRequest(BaseModel):
-    emoji: str | None = Field(default=None, description="Emoji choisi parmi 😄🙂😐😔😢")
-    text: str | None = Field(default=None, max_length=1000, description="Texte libre optionnel")
+    emoji: str | None = Field(
+        default=None,
+        pattern=r"^(😄|🙂|😐|😔|😢)$",
+        description="Emoji choisi parmi 😄🙂😐😔😢",
+    )
+    text: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=1000,
+        description="Texte libre optionnel",
+    )
     step: int = Field(default=1, ge=1, le=2, description="1=check-in initial, 2=réponse à la question de suivi")
 
 

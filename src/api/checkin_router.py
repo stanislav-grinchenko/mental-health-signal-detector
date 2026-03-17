@@ -7,8 +7,10 @@ Phase 3 : /checkin/reminder — persistance des rappels de suivi
 
 from collections import deque
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from loguru import logger
+
+from src.api.rate_limit import limiter
 
 from src.checkin.schemas import CheckInRequest, CheckInResponse, ReminderRequest, ReminderResponse
 
@@ -33,7 +35,8 @@ _reminders: deque[dict] = deque(maxlen=_MAX_REMINDERS)
 
 
 @router.post("", response_model=CheckInResponse)
-def checkin_endpoint(request: CheckInRequest):
+@limiter.limit("20/minute")
+def checkin_endpoint(request: Request, body: CheckInRequest):
     """
     Point d'entrée du check-in quotidien.
 
@@ -41,26 +44,26 @@ def checkin_endpoint(request: CheckInRequest):
     Si un texte est fourni, il est analysé par le modèle NLP Phase 1.
     Retourne un message, un tip, une question de suivi et des ressources si nécessaire.
     """
-    if not request.emoji and not request.text:
+    if not body.emoji and not body.text:
         raise HTTPException(status_code=422, detail="Fournis au moins un emoji ou un texte.")
 
     text_score = None
     detected_lang = "fr"
 
-    if request.text and request.text.strip() and _ML_AVAILABLE:
+    if body.text and body.text.strip() and _ML_AVAILABLE:
         try:
             model = _get_model("baseline")
-            result = _predict(request.text, model=model, model_type="baseline")
+            result = _predict(body.text, model=model, model_type="baseline")
             text_score = result["score_distress"]
             detected_lang = result.get("detected_lang", "fr")
         except Exception as e:
             logger.warning(f"Analyse NLP échouée, score emoji seul utilisé : {e}")
 
     response_data = build_response(
-        emoji=request.emoji,
-        text=request.text,
+        emoji=body.emoji,
+        text=body.text,
         text_score=text_score,
-        step=request.step,
+        step=body.step,
     )
 
     return CheckInResponse(

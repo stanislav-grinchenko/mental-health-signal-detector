@@ -1,8 +1,14 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from loguru import logger
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from starlette.middleware.base import BaseHTTPMiddleware
+
+from src.api.rate_limit import limiter
 
 from src.api.schemas import ExplainRequest, ExplainResponse, HealthResponse, PredictRequest, PredictResponse
 from src.api.checkin_router import router as checkin_router
@@ -54,6 +60,24 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+_MAX_REQUEST_BODY = 64 * 1024  # 64 KB — textes longs refusés (prompt injection, DoS)
+
+
+class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
+    """Rejette les requêtes dont le body dépasse _MAX_REQUEST_BODY octets."""
+
+    async def dispatch(self, request: Request, call_next):
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > _MAX_REQUEST_BODY:
+            return JSONResponse(
+                status_code=413,
+                content={"detail": f"Corps de requête trop grand (max {_MAX_REQUEST_BODY // 1024} KB)."},
+            )
+        return await call_next(request)
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -61,6 +85,7 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )
+app.add_middleware(RequestSizeLimitMiddleware)
 
 app.include_router(checkin_router)
 app.include_router(solutions_router)
@@ -73,18 +98,24 @@ def health_check():
     try:
         get_model("baseline")
         return HealthResponse(status="ok", model_loaded=True)
-    except Exception:
+    except (FileNotFoundError, OSError):
+        # Modèle absent (état normal avant entraînement) — 200 sans alerter les healthchecks
         return HealthResponse(status="ok", model_loaded=False)
+    except Exception as e:
+        # Erreur inattendue (corruption, OOM…) → 503
+        logger.error(f"Health check — erreur modèle : {e}")
+        raise HTTPException(status_code=503, detail="Modèle indisponible — erreur inattendue.")
 
 
 @app.post("/explain", response_model=ExplainResponse)
-def explain_endpoint(request: ExplainRequest):
+@limiter.limit("10/minute")
+def explain_endpoint(request: Request, request_body: ExplainRequest):
     """Retourne les contributions SHAP des mots les plus influents (baseline uniquement)."""
     if not _ML_AVAILABLE:
         raise HTTPException(status_code=503, detail="Modèle non disponible — déploiement slim.")
     try:
         model = get_model("baseline")
-        return run_explain(request, model)
+        return run_explain(request_body, model)
     except (FileNotFoundError, OSError) as e:
         logger.warning(f"Modèle indisponible (explain) : {e}")
         raise HTTPException(status_code=503, detail="Modèle non disponible — entraînement requis.")
@@ -94,12 +125,13 @@ def explain_endpoint(request: ExplainRequest):
 
 
 @app.post("/predict", response_model=PredictResponse)
-def predict_endpoint(request: PredictRequest):
+@limiter.limit("30/minute")
+def predict_endpoint(request: Request, body: PredictRequest):
     if not _ML_AVAILABLE:
         raise HTTPException(status_code=503, detail="Modèle non disponible — déploiement slim.")
     try:
-        model = get_model(request.model_type)
-        return run_prediction(request, model)
+        model = get_model(body.model_type)
+        return run_prediction(body, model)
     except (FileNotFoundError, OSError) as e:
         logger.warning(f"Modèle indisponible : {e}")
         raise HTTPException(status_code=503, detail="Modèle non disponible — entraînement requis.")
