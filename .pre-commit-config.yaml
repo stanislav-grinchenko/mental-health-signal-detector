@@ -30,3 +30,8 @@ repos:
         name: ruff check
         args: [--output-format, concise] # Makes the ruff check output more legible.
         types_or: [python, pyi] # Only scan .py files (and not jupyter notebooks)
+
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.8.1
+    hooks:
+      - id: nbstripout    # strips notebook outputs before committing
