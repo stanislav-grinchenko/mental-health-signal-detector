@@ -1,0 +1,378 @@
+import { useEffect, useState } from "react";
+import { useNavigate, useLocation } from "react-router";
+import { motion, AnimatePresence } from "motion/react";
+import {
+  Heart, ArrowRight, Phone, ExternalLink, ChevronDown,
+  Sparkles, Shield, AlertTriangle, BookOpen, Wind, Users,
+  Wind as BreathIcon, PenLine, MessageCircle, RotateCcw,
+} from "lucide-react";
+import { computeSolution } from "../lib/solutionEngine";
+import type { DiagnosticProfile } from "../types/diagnostic";
+import type { SolutionResponse, MicroAction, Resource, TherapeuticBrick } from "../types/solutions";
+
+// ─── Helpers visuels ─────────────────────────────────────────────────────────
+
+const LEVEL_CONFIG = {
+  0: { bg: "from-emerald-50 to-teal-50", badge: "bg-emerald-100 text-emerald-700", label: "Bien-être" },
+  1: { bg: "from-sky-50 to-cyan-50",     badge: "bg-sky-100 text-sky-700",         label: "Léger" },
+  2: { bg: "from-amber-50 to-orange-50", badge: "bg-amber-100 text-amber-700",     label: "Modéré" },
+  3: { bg: "from-orange-50 to-red-50",   badge: "bg-orange-100 text-orange-700",   label: "Élevé" },
+  4: { bg: "from-red-50 to-pink-50",     badge: "bg-red-100 text-red-700",         label: "Urgent" },
+} as const;
+
+const BRICK_ICON: Record<TherapeuticBrick, React.ComponentType<any>> = {
+  cbt_activation:    BookOpen,
+  cbt_restructuring: BookOpen,
+  act:               Heart,
+  mindfulness:       Wind,
+  psychoeducation:   BookOpen,
+  social_support:    Users,
+  professional:      Users,
+  crisis:            Shield,
+};
+
+const BRICK_LABEL: Record<TherapeuticBrick, string> = {
+  cbt_activation:    "Activation comportementale",
+  cbt_restructuring: "Restructuration cognitive",
+  act:               "Acceptation & Engagement",
+  mindfulness:       "Pleine conscience",
+  psychoeducation:   "Psychoéducation",
+  social_support:    "Soutien social",
+  professional:      "Orientation professionnelle",
+  crisis:            "Protocole de sécurité",
+};
+
+// ─── Sous-composants ─────────────────────────────────────────────────────────
+
+function ActionCard({ action, index }: { action: MicroAction; index: number }) {
+  const [expanded, setExpanded] = useState(false);
+  const Icon = BRICK_ICON[action.brick];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.3 + index * 0.1 }}
+      className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-md overflow-hidden"
+    >
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-3 p-4 text-left"
+      >
+        <div className="w-10 h-10 bg-teal-100 rounded-xl flex items-center justify-center flex-shrink-0">
+          <Icon className="w-5 h-5 text-teal-600" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="font-medium text-gray-800 text-sm">{action.title}</div>
+          <div className="text-xs text-gray-400 mt-0.5">{action.duration}</div>
+        </div>
+        <motion.div animate={{ rotate: expanded ? 180 : 0 }} transition={{ duration: 0.2 }}>
+          <ChevronDown className="w-4 h-4 text-gray-400" />
+        </motion.div>
+      </button>
+
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <p className="px-4 pb-4 text-sm text-gray-600 leading-relaxed border-t border-gray-100 pt-3">
+              {action.description}
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+function ResourceCard({ resource, index }: { resource: Resource; index: number }) {
+  const isPhone = resource.type === "phone";
+  const isPerson = resource.type === "person";
+
+  const content = (
+    <div
+      className={`w-full rounded-2xl p-4 flex items-center gap-3 shadow-md transition-all ${
+        resource.urgent
+          ? "bg-gradient-to-r from-pink-400 to-rose-400 text-white border-2 border-pink-300"
+          : "bg-white/80 backdrop-blur-sm"
+      }`}
+    >
+      <div
+        className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+          resource.urgent ? "bg-white/25" : "bg-teal-100"
+        }`}
+      >
+        {isPhone || resource.urgent ? (
+          <Phone className={`w-5 h-5 ${resource.urgent ? "text-white" : "text-teal-600"}`} />
+        ) : isPerson ? (
+          <Users className="w-5 h-5 text-teal-600" />
+        ) : (
+          <ExternalLink className="w-5 h-5 text-teal-600" />
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className={`font-medium text-sm ${resource.urgent ? "text-white" : "text-gray-800"}`}>
+          {resource.label}
+        </div>
+        <div className={`text-xs mt-0.5 ${resource.urgent ? "text-white/80" : "text-gray-500"}`}>
+          {resource.detail}
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.5 + index * 0.08 }}
+    >
+      {resource.href ? (
+        <a href={resource.href} target={isPhone ? "_self" : "_blank"} rel="noopener noreferrer">
+          {content}
+        </a>
+      ) : (
+        content
+      )}
+    </motion.div>
+  );
+}
+
+// ─── Écran principal ─────────────────────────────────────────────────────────
+
+export default function Solutions() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const diagnosticProfile = location.state?.diagnosticProfile as DiagnosticProfile | undefined;
+  const mode = diagnosticProfile?.mode ?? "kids";
+
+  // Guard : accès direct sans flow → redirection
+  useEffect(() => {
+    if (!diagnosticProfile) navigate("/", { replace: true });
+  }, [diagnosticProfile, navigate]);
+
+  if (!diagnosticProfile) return null;
+
+  const solution: SolutionResponse = computeSolution(diagnosticProfile);
+  const levelConfig = LEVEL_CONFIG[solution.level];
+  const BrickIcon = BRICK_ICON[solution.therapeuticBrick];
+
+  return (
+    <div className={`min-h-screen bg-gradient-to-b ${levelConfig.bg} flex flex-col`}>
+
+      {/* Header */}
+      <div className="px-6 pt-12 pb-4">
+        <button
+          onClick={() => navigate(-1)}
+          className="text-gray-500 mb-4 hover:text-gray-700 transition-colors"
+        >
+          ← Retour
+        </button>
+
+        <motion.div
+          initial={{ opacity: 0, y: -16 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center"
+        >
+          {/* Badge niveau — masqué en mode enfant */}
+          {mode === "adult" && (
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring", delay: 0.1 }}
+              className="flex justify-center mb-4"
+            >
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${levelConfig.badge}`}>
+                <BrickIcon className="w-3.5 h-3.5" />
+                {BRICK_LABEL[solution.therapeuticBrick]}
+              </span>
+            </motion.div>
+          )}
+
+          {/* Icône selon urgence */}
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", delay: 0.15 }}
+            className="mb-5 inline-block"
+          >
+            <div className={`w-16 h-16 rounded-full flex items-center justify-center shadow-lg ${
+              solution.level >= 4 ? "bg-gradient-to-br from-pink-400 to-rose-500"
+              : solution.level >= 3 ? "bg-gradient-to-br from-orange-300 to-amber-400"
+              : solution.level >= 2 ? "bg-gradient-to-br from-amber-300 to-yellow-400"
+              : "bg-gradient-to-br from-teal-300 to-emerald-400"
+            }`}>
+              {solution.level >= 4 ? (
+                <AlertTriangle className="w-8 h-8 text-white" />
+              ) : solution.level >= 3 ? (
+                <Shield className="w-8 h-8 text-white" />
+              ) : solution.level >= 2 ? (
+                <Heart className="w-8 h-8 text-white" fill="white" />
+              ) : (
+                <Sparkles className="w-8 h-8 text-white" />
+              )}
+            </div>
+          </motion.div>
+
+          <motion.h1
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="text-xl font-medium px-4"
+            style={{ color: "#2A5F7D" }}
+          >
+            {mode === "kids"
+              ? solution.level >= 4 ? "Tu n'es pas seul"
+                : solution.level >= 3 ? "Je suis là pour t'aider"
+                : solution.level >= 2 ? "Voilà ce qui peut t'aider"
+                : "Bravo, tu prends soin de toi !"
+              : solution.level >= 4 ? "Vous n'êtes pas seul(e)"
+                : solution.level >= 3 ? "Des solutions concrètes pour vous"
+                : solution.level >= 2 ? "Vos pistes d'action"
+                : "Cultivez votre bien-être"}
+          </motion.h1>
+        </motion.div>
+      </div>
+
+      {/* Contenu */}
+      <div className="flex-1 px-6 pb-10 overflow-y-auto space-y-5">
+
+        {/* Message empathique */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+          className={`rounded-3xl p-5 shadow-lg ${
+            solution.level >= 4
+              ? "bg-gradient-to-br from-orange-100 to-pink-100 border-2 border-pink-200"
+              : "bg-white/80 backdrop-blur-sm"
+          }`}
+        >
+          <div className="flex items-start gap-3">
+            <Heart className="w-5 h-5 text-pink-400 flex-shrink-0 mt-0.5" fill="currentColor" />
+            <p className="text-gray-700 leading-relaxed text-sm">{solution.message}</p>
+          </div>
+        </motion.div>
+
+        {/* Ressources urgentes — niveau 4 en tête */}
+        {solution.escalationRequired && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.3 }}
+            className="space-y-2"
+          >
+            <p className="text-sm font-medium text-gray-600 px-1">
+              {mode === "kids" ? "Des personnes sont là pour toi maintenant" : "Aide disponible immédiatement"}
+            </p>
+            {solution.resources.filter((r) => r.urgent).map((r, i) => (
+              <ResourceCard key={r.id} resource={r} index={i} />
+            ))}
+          </motion.div>
+        )}
+
+        {/* Micro-actions */}
+        {solution.microActions.length > 0 && (
+          <div className="space-y-2">
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.28 }}
+              className="text-sm font-medium text-gray-600 px-1"
+            >
+              {mode === "kids" ? "Ce que tu peux faire maintenant" : "Actions concrètes"}
+            </motion.p>
+            {solution.microActions.map((action, i) => (
+              <ActionCard key={action.id} action={action} index={i} />
+            ))}
+          </div>
+        )}
+
+        {/* Ressources non-urgentes */}
+        {solution.resources.filter((r) => !r.urgent).length > 0 && (
+          <div className="space-y-2">
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5 }}
+              className="text-sm font-medium text-gray-600 px-1"
+            >
+              {mode === "kids" ? "Si tu veux aller plus loin" : "Pour aller plus loin"}
+            </motion.p>
+            {solution.resources.filter((r) => !r.urgent).map((r, i) => (
+              <ResourceCard key={r.id} resource={r} index={i} />
+            ))}
+          </div>
+        )}
+
+        {/* Et maintenant ? — bloc 4 options */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.65 }}
+          className="space-y-2"
+        >
+          <p className="text-sm font-medium text-gray-600 px-1">
+            {mode === "kids" ? "Et maintenant, qu'est-ce qui t'aiderait le plus ?" : "Et maintenant, qu'est-ce qui vous aiderait le plus ?"}
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { Icon: BreathIcon,      label: mode === "kids" ? "Respirer 2 min"        : "Respirer 2 minutes" },
+              { Icon: PenLine,         label: mode === "kids" ? "Écrire ce que je ressens" : "Écrire ce que je ressens" },
+              { Icon: MessageCircle,   label: mode === "kids" ? "Parler à quelqu'un"    : "Parler à quelqu'un" },
+              { Icon: RotateCcw,       label: mode === "kids" ? "Refaire un point plus tard" : "Refaire un point plus tard" },
+            ].map(({ Icon, label }) => (
+              <div
+                key={label}
+                className="bg-white/70 backdrop-blur-sm rounded-2xl p-3 flex items-center gap-2 shadow-sm"
+              >
+                <Icon className="w-4 h-4 text-teal-500 flex-shrink-0" />
+                <span className="text-xs text-gray-600 leading-tight">{label}</span>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* Clôture */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.72 }}
+          className="text-center px-4"
+        >
+          <p className="text-sm text-gray-500 italic leading-relaxed">
+            {solution.closing}
+          </p>
+        </motion.div>
+
+        {/* CTA → CheckIn */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.8 }}
+        >
+          <button
+            onClick={() =>
+              navigate("/checkin", {
+                state: { mode, diagnosticProfile },
+              })
+            }
+            className="w-full bg-gradient-to-r from-teal-400 via-cyan-400 to-blue-400 text-white rounded-3xl py-5 shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-3 font-medium"
+          >
+            <span>
+              {mode === "kids" ? "Programmer un prochain point" : "Planifier un suivi"}
+            </span>
+            <ArrowRight className="w-5 h-5" />
+          </button>
+        </motion.div>
+
+      </div>
+    </div>
+  );
+}

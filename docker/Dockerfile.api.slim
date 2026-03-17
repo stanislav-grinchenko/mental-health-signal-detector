@@ -1,0 +1,31 @@
+# Dockerfile.api.slim — déploiement sans modèles ML (test / demo)
+#
+# Le modèle DistilBERT (2.6 Go) est exclu.
+# /predict retourne 503 si appelé, les autres endpoints (/solutions, /checkin)
+# fonctionnent normalement. Le frontend gère le fallback gracieusement.
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Dépendances Python — sans torch/transformers (trop lourds sans le modèle)
+COPY docker/requirements.slim.txt .
+RUN pip install --no-cache-dir -r requirements.slim.txt
+
+COPY src/ ./src/
+COPY configs/ ./configs/
+
+ENV PYTHONPATH=/app
+ENV PORT=8000
+
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
+
+EXPOSE 8000
+
+CMD ["sh", "-c", "uvicorn src.api.main:app --host 0.0.0.0 --port ${PORT}"]

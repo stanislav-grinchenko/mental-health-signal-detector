@@ -6,7 +6,8 @@ déterminer le niveau de réponse (VERT / JAUNE / ROUGE).
 """
 
 import random
-from datetime import datetime
+import uuid
+from datetime import datetime, timedelta
 from enum import Enum
 
 from loguru import logger
@@ -148,3 +149,41 @@ def build_response(
             "resources": resources,
             "greeting": greeting,
         }
+
+
+# ─── Rappels de suivi ─────────────────────────────────────────────────────────
+
+def compute_reminder(offset: str, mode: str) -> dict:
+    """
+    Calcule l'heure de rappel à partir de l'offset choisi.
+
+    offset : "1h" | "4h" | "tomorrow"
+    mode   : "kids" | "adult"
+    """
+    now = datetime.now()
+
+    if offset == "1h":
+        scheduled_at = now + timedelta(hours=1)
+        label = f"aujourd'hui à {scheduled_at.strftime('%Hh%M')}"
+    elif offset == "4h":
+        scheduled_at = now + timedelta(hours=4)
+        if scheduled_at.date() > now.date():
+            label = f"demain à {scheduled_at.strftime('%Hh%M')}"
+        else:
+            label = f"aujourd'hui à {scheduled_at.strftime('%Hh%M')}"
+    else:  # tomorrow
+        scheduled_at = (now + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
+        label = "demain à 9h00"
+
+    if mode == "kids":
+        message = f"Super ! On se retrouve {label} 💙"
+    else:
+        message = f"Rappel programmé pour {label}."
+
+    return {
+        "id": str(uuid.uuid4()),
+        "offset": offset,
+        "scheduled_at": scheduled_at.isoformat(),
+        "scheduled_label": label,
+        "message": message,
+    }

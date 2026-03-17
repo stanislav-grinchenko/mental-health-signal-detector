@@ -1,17 +1,35 @@
 """
 Router FastAPI — /checkin
-Phase 2 : "Comment vas-tu ce matin ?"
+
+Phase 2 : "Comment vas-tu ce matin ?" — check-in émotionnel (emoji + texte)
+Phase 3 : /checkin/reminder — persistance des rappels de suivi
 """
+
+from collections import deque
 
 from fastapi import APIRouter, HTTPException
 from loguru import logger
 
-from src.api.dependencies import get_model
-from src.training.predict import predict
-from src.checkin.schemas import CheckInRequest, CheckInResponse
-from src.checkin.engine import build_response
+from src.checkin.schemas import CheckInRequest, CheckInResponse, ReminderRequest, ReminderResponse
+
+# Imports ML optionnels — absents en mode slim
+try:
+    from src.api.dependencies import get_model as _get_model
+    from src.training.predict import predict as _predict
+    _ML_AVAILABLE = True
+except ImportError:
+    _ML_AVAILABLE = False
+    _get_model = None  # type: ignore[assignment]
+    _predict = None  # type: ignore[assignment]
+from src.checkin.engine import build_response, compute_reminder
 
 router = APIRouter(prefix="/checkin", tags=["checkin"])
+
+# ─── Store en mémoire — rappels de suivi ─────────────────────────────────────
+# Taille max = 1000 entrées (rotation FIFO) pour éviter la fuite mémoire.
+# Remplaçable par une vraie persistance (SQLite, Redis) sans changer l'interface.
+_MAX_REMINDERS = 1000
+_reminders: deque[dict] = deque(maxlen=_MAX_REMINDERS)
 
 
 @router.post("", response_model=CheckInResponse)
@@ -29,10 +47,10 @@ def checkin_endpoint(request: CheckInRequest):
     text_score = None
     detected_lang = "fr"
 
-    if request.text and request.text.strip():
+    if request.text and request.text.strip() and _ML_AVAILABLE:
         try:
-            model = get_model("baseline")
-            result = predict(request.text, model=model, model_type="baseline")
+            model = _get_model("baseline")
+            result = _predict(request.text, model=model, model_type="baseline")
             text_score = result["score_distress"]
             detected_lang = result.get("detected_lang", "fr")
         except Exception as e:
@@ -49,3 +67,38 @@ def checkin_endpoint(request: CheckInRequest):
         **response_data,
         detected_lang=detected_lang,
     )
+
+
+@router.post("/reminder", response_model=ReminderResponse)
+def reminder_endpoint(request: ReminderRequest) -> ReminderResponse:
+    """
+    Enregistre une intention de rappel de suivi.
+
+    Calcule l'heure réelle de rappel (now + offset) et retourne un libellé
+    lisible ("aujourd'hui à 15h30", "demain à 9h00").
+
+    Le store est en mémoire (FIFO, max 1000 entrées).
+    Remplaçable par SQLite / Redis sans changer l'interface publique.
+    """
+    reminder = compute_reminder(offset=request.offset, mode=request.mode)
+    reminder["emotion_id"] = request.emotion_id
+    reminder["distress_level"] = request.distress_level
+
+    _reminders.append(reminder)
+
+    logger.info(
+        f"[reminder] id={reminder['id']} offset={request.offset} "
+        f"scheduled={reminder['scheduled_at']} mode={request.mode} "
+        f"emotion={request.emotion_id} distress={request.distress_level}"
+    )
+
+    return ReminderResponse(**reminder)
+
+
+@router.get("/reminders", response_model=list[ReminderResponse])
+def list_reminders() -> list[ReminderResponse]:
+    """
+    Liste tous les rappels en mémoire (utile pour le dashboard / monitoring).
+    Retournés du plus récent au plus ancien.
+    """
+    return [ReminderResponse(**r) for r in reversed(_reminders)]

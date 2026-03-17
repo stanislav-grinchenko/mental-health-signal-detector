@@ -329,6 +329,48 @@ curl -X POST http://localhost:8000/checkin \
 
 ---
 
+## Web App — Phase 2 & 3 (frontend React)
+
+Application mobile-first "Comment vas-tu ?" — interface de check-in émotionnel connectée au pipeline ML avec moteur de recommandation clinique.
+
+```bash
+cd frontend
+npm install
+npm run dev       # http://localhost:5173
+```
+
+**Workflow utilisateur (Phase 3 complet) :**
+`Welcome` → `EmotionSelection` → `Expression` → `SupportResponse` → `Solutions` → `CheckIn`
+
+**Phase 2 — Intégration ML :**
+- `Expression.tsx` appelle `POST /predict` (distilbert) au submit avec spinner + AbortController
+- `SupportResponse.tsx` fusionne score ML + émotion via pipeline clinique :
+  - Planchers par émotion recalibrés (sadness/fear → 0.35, anger/tiredness → 0.30)
+  - Détection de masking : émotion positive + score ML élevé → `+0.15` (dissimulation)
+  - 4 dimensions cliniques détectées dans le texte : burnout, anxiety, depression_masked, dysregulation
+  - 6 profils cliniques dérivés : wellbeing, adjustment, burnout, anxiety, depression, crisis
+  - Keywords critiques 17-item → escalade `critical` (filet de sécurité absolu)
+  - Fallback gracieux si API indisponible
+
+**Phase 3 — Moteur de recommandation clinique (stepped-care model) :**
+- `Solutions.tsx` : écran post-diagnostic consommant le `DiagnosticProfile`
+- Triage en 5 niveaux (0-4) via `solutionEngine.ts` → `SolutionResponse`
+- Contenu thérapeutique : scripts UX/cliniques v2, 8 émotions × 3 niveaux × kids/adult
+- 20 micro-actions (CBT, ACT, mindfulness, psychoéducation, soutien social)
+- Ressources France par niveau (3114, SAMU, Fil Santé Jeunes, Mon Soutien Psy, Psycom)
+- Bloc clôture empathique + bloc "Et maintenant ?" (4 options) par niveau
+
+**Contraintes cliniques non-négociables :**
+- Niveau 4 → 3114 toujours visible, jamais d'écran vide
+- Mode enfants → aucun score numérique de détresse affiché
+- L'app n'émet jamais de diagnostic — elle oriente uniquement
+
+Voir [frontend/README.md](frontend/README.md) pour la documentation complète.
+
+> Le backend FastAPI doit tourner sur `:8000` — le proxy Vite route automatiquement `/predict`, `/checkin` et `/health`.
+
+---
+
 ## Dashboard
 
 ```bash
@@ -442,6 +484,23 @@ Copier `.env.example` en `.env` :
 
 ```
 mental-health-signal-detector/
+├── frontend/                     # Phase 2 & 3 — React web app (Vite + React 18 + Tailwind v4)
+│   ├── src/
+│   │   ├── screens/              # Welcome, EmotionSelection, Expression, SupportResponse, Solutions, CheckIn
+│   │   ├── types/
+│   │   │   ├── diagnostic.ts     # DiagnosticProfile, ClinicalProfile, ClinicalDimension, EmotionAxes
+│   │   │   └── solutions.ts      # SolutionResponse, MicroAction, Resource, TriageLevel, TherapeuticBrick
+│   │   ├── data/
+│   │   │   └── solutions.ts      # Bibliothèque thérapeutique : messages, closings, actions, ressources
+│   │   ├── lib/
+│   │   │   └── solutionEngine.ts # Moteur de recommandation : DiagnosticProfile → SolutionResponse
+│   │   ├── components/figma/     # ImageWithFallback
+│   │   ├── App.tsx               # Mobile frame + RouterProvider
+│   │   ├── routes.ts             # 6 routes React Router v7
+│   │   ├── index.css / tailwind.css / theme.css
+│   │   └── main.tsx
+│   ├── vite.config.ts            # Proxy /predict /checkin /health → :8000
+│   └── package.json
 ├── configs/
 │   ├── api.yaml              # Host, port, CORS, timeout traduction
 │   ├── dashboard.yaml        # API URL, timeout, nb features SHAP

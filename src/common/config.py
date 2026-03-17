@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     # App
     env: str = "development"
     log_level: str = "INFO"
+    # CORS — origines autorisées en production (séparées par des virgules)
+    # Ex: https://monapp.vercel.app,https://www.mondomaine.com
+    # Mettre "*" pour tout autoriser (non recommandé en production)
+    allowed_origins: str = "*"
 
 
 @lru_cache

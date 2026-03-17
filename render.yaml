@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: mh-detector-api
+    runtime: docker
+    dockerfilePath: ./docker/Dockerfile.api.slim
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: ENV
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+      - key: ALLOWED_ORIGINS
+        sync: false   # à remplir dans le dashboard Render : URL Vercel de ton frontend
+      - key: PORT
+        value: "8000"
+    healthCheckPath: /health

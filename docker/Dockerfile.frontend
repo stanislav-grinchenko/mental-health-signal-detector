@@ -1,0 +1,32 @@
+# ─── Stage 1 : Build React / Vite ────────────────────────────────────────────
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Installer les dépendances en premier (layer cache optimal)
+COPY frontend/package*.json ./
+RUN npm ci --prefer-offline
+
+# Copier le code source et builder
+COPY frontend/ ./
+RUN npm run build
+
+# ─── Stage 2 : Servir avec nginx ─────────────────────────────────────────────
+FROM nginx:1.27-alpine
+
+# Config nginx : SPA routing + proxy API
+COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+
+# Fichiers statiques buildés
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Sécurité : nginx tourne en non-root
+RUN chown -R nginx:nginx /usr/share/nginx/html \
+    && chmod -R 755 /usr/share/nginx/html
+
+EXPOSE 80
+
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+    CMD wget -q --spider http://localhost/ || exit 1
+
+CMD ["nginx", "-g", "daemon off;"]
