@@ -127,8 +127,18 @@ export default function Welcome() {
         </motion.p>
       </motion.div>
 
+      {/* Disclaimer */}
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1.3 }}
+        className="text-xs text-gray-400 text-center max-w-sm px-6 mt-6"
+      >
+        Cette application ne constitue pas un dispositif médical et ne remplace en aucun cas un avis médical, un diagnostic ou un traitement par un professionnel de santé.
+      </motion.p>
+
       {/* Bottom Safe Area */}
-      <div className="h-12"></div>
+      <div className="h-8"></div>
     </div>
   );
 }
