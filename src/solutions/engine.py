@@ -12,7 +12,6 @@ from src.solutions.schemas import (
     DiagnosticProfileRequest,
     SolutionResponse,
     TherapeuticBrick,
-    TriageLevel,
 )
 from src.solutions.data import (
     RESOURCES_BY_LEVEL,
