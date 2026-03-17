@@ -1,8 +1,8 @@
 """
 Moteur de conversation — "Comment vas-tu ce matin ?"
 
-Combine le score emoji + l'analyse NLP du texte libre pour
-déterminer le niveau de réponse (VERT / JAUNE / ROUGE).
+4 niveaux de reponse : CRITICAL / RED / YELLOW / GREEN
+Le niveau CRITICAL est detecte par mots-cles AVANT tout scoring ML.
 """
 
 import random
@@ -13,12 +13,18 @@ from enum import Enum
 from loguru import logger
 
 from src.checkin.content import (
+    CRITICAL_KEYWORDS,
+    CRITICAL_RESPONSES,
     EMOJI_SCORES,
     GREEN_RESPONSES,
     GREEN_TIPS,
+    INTENSITY_MODIFIERS,
+    INTENSITY_SCORE_BOOST,
     RED_FOLLOWUP_QUESTIONS,
     RED_RESPONSES,
-    RESOURCES,
+    RESOURCES_CRITICAL,
+    RESOURCES_RED,
+    RESOURCES_YELLOW,
     YELLOW_FOLLOWUP_QUESTIONS,
     YELLOW_RESPONSES,
     YELLOW_TIPS,
@@ -27,52 +33,83 @@ from src.checkin.content import (
 
 
 class DistressLevel(str, Enum):
-    GREEN = "green"
-    YELLOW = "yellow"
-    RED = "red"
+    CRITICAL = "critical"   # ideation suicidaire — securite absolue
+    RED      = "red"        # detresse forte
+    YELLOW   = "yellow"     # detresse moderee
+    GREEN    = "green"      # bien-etre
 
 
-# Seuils de détresse
 THRESHOLD_GREEN = 0.35
-THRESHOLD_RED = 0.65
+THRESHOLD_RED   = 0.65
 
-# Plancher de sécurité par emoji — l'emoji est un choix explicite de l'utilisateur.
-# Le modèle NLP peut échouer (faute d'orthographe, langue non reconnue) :
-# le niveau ne doit JAMAIS être inférieur à ce plancher.
+# Plancher de securite : l'emoji choisi ne peut pas etre contredit par le NLP
 EMOJI_FLOOR: dict[str, DistressLevel] = {
-    "😢": DistressLevel.RED,     # désespoir → toujours ROUGE
-    "😔": DistressLevel.YELLOW,  # tristesse → au minimum JAUNE
+    "😢": DistressLevel.RED,
+    "😔": DistressLevel.YELLOW,
 }
 
 
-def compute_score(emoji: str | None, text_score: float | None) -> float:
+def _normalize(s: str) -> str:
+    """Normalise pour la detection : minuscules, suppression des apostrophes variantes."""
+    return s.lower().replace("\u2019", "").replace("\u2018", "").replace("'", "").replace("'", "")
+
+
+# Pre-normalisation des mots-cles pour correspondance robuste
+_CRITICAL_KEYWORDS_NORMALIZED = [_normalize(kw) for kw in CRITICAL_KEYWORDS]
+
+
+def check_critical(text: str | None) -> bool:
+    """
+    Detecte l'ideation suicidaire par mots-cles.
+    Appelee AVANT tout scoring NLP/emoji — securite absolue.
+    Normalise le texte ET les mots-cles (apostrophes, casse) pour maximiser la detection.
+    """
+    if not text:
+        return False
+    normalized = _normalize(text)
+    return any(kw in normalized for kw in _CRITICAL_KEYWORDS_NORMALIZED)
+
+
+def apply_intensity_boost(text: str | None, score: float) -> float:
+    """
+    Augmente le score si des modificateurs d'intensite/frequence sont detectes.
+    Ex : 'je suis triste tout le temps' → score booste de +0.15
+    """
+    if not text:
+        return score
+    normalized = text.lower()
+    if any(mod in normalized for mod in INTENSITY_MODIFIERS):
+        boosted = min(score + INTENSITY_SCORE_BOOST, 1.0)
+        logger.debug(f"Intensity boost applique : {score:.3f} -> {boosted:.3f}")
+        return boosted
+    return score
+
+
+def compute_score(emoji: str | None, text_score: float | None, text: str | None = None) -> float:
     """
     Fusionne le score emoji et le score NLP.
-    Règle de sécurité : on prend le MAXIMUM des deux scores.
-    Le modèle NLP peut sous-estimer (faute d'orthographe, traduction échouée) ;
-    l'emoji reste le signal de référence.
+    Regle de securite : on prend le MAXIMUM des deux scores.
+    Applique ensuite le boost d'intensite si des modificateurs sont detectes.
     """
     emoji_score = EMOJI_SCORES.get(emoji) if emoji else None
 
     if emoji_score is not None and text_score is not None:
-        return round(max(emoji_score, text_score), 3)
+        base = max(emoji_score, text_score)
     elif emoji_score is not None:
-        return emoji_score
+        base = emoji_score
     elif text_score is not None:
-        return text_score
+        base = text_score
     else:
-        return 0.45  # fallback neutre
+        base = 0.45
+
+    return round(apply_intensity_boost(text, base), 3)
 
 
 def get_level(score: float, emoji: str | None = None) -> DistressLevel:
     """
-    Détermine le niveau de détresse.
-    Applique un plancher de sécurité basé sur l'emoji choisi :
-    un utilisateur qui clique 😢 est toujours en ROUGE, quelle que soit
-    l'analyse NLP du texte.
+    Determine le niveau de detresse a partir du score fusionne.
+    Applique le plancher de securite emoji.
     """
-    floor = EMOJI_FLOOR.get(emoji) if emoji else None
-
     if score < THRESHOLD_GREEN:
         level = DistressLevel.GREEN
     elif score < THRESHOLD_RED:
@@ -80,10 +117,10 @@ def get_level(score: float, emoji: str | None = None) -> DistressLevel:
     else:
         level = DistressLevel.RED
 
-    # Appliquer le plancher de sécurité
-    order = [DistressLevel.GREEN, DistressLevel.YELLOW, DistressLevel.RED]
+    floor = EMOJI_FLOOR.get(emoji) if emoji else None
+    order = [DistressLevel.GREEN, DistressLevel.YELLOW, DistressLevel.RED, DistressLevel.CRITICAL]
     if floor and order.index(floor) > order.index(level):
-        logger.warning(f"Plancher de sécurité appliqué : emoji={emoji} score={score} {level}→{floor}")
+        logger.warning(f"Plancher securite : emoji={emoji} score={score} {level}->{floor}")
         return floor
 
     return level
@@ -96,94 +133,95 @@ def build_response(
     step: int = 1,
 ) -> dict:
     """
-    Construit la réponse conversationnelle.
+    Construit la reponse conversationnelle.
 
-    step=1 : première réponse après le check-in initial
-    step=2 : réponse après la question de suivi
+    Ordre de priorite :
+      1. Verification CRITICAL (mots-cles ideation suicidaire) — independant du score
+      2. Scoring fusionne emoji + NLP + boost intensite
+      3. Reponse par niveau
+
+    step=1 : premiere reponse apres check-in
+    step=2 : reponse apres question de suivi
     """
-    score = compute_score(emoji, text_score)
-    level = get_level(score, emoji)
-    hour = datetime.now().hour
+    hour     = datetime.now().hour
     greeting = get_greeting(hour)
 
-    logger.debug(f"CheckIn — emoji={emoji} text_score={text_score} → score={score} level={level}")
+    # --- PRIORITE 1 : detection CRITICAL ---
+    if check_critical(text):
+        logger.warning(f"CRITICAL detecte : text='{text[:60] if text else ''}'")
+        return {
+            "level":      DistressLevel.CRITICAL,
+            "score":      1.0,
+            "message":    random.choice(CRITICAL_RESPONSES),
+            "tip":        None,
+            "follow_up":  None,
+            "resources":  RESOURCES_CRITICAL,
+            "greeting":   greeting,
+            "critical":   True,
+        }
+
+    # --- PRIORITE 2 : scoring fusionne ---
+    score = compute_score(emoji, text_score, text)
+    level = get_level(score, emoji)
+    logger.debug(f"CheckIn — emoji={emoji} text_score={text_score} score={score} level={level}")
 
     if level == DistressLevel.GREEN:
         return {
-            "level": level,
-            "score": score,
-            "message": random.choice(GREEN_RESPONSES),
-            "tip": random.choice(GREEN_TIPS),
+            "level":     level,
+            "score":     score,
+            "message":   random.choice(GREEN_RESPONSES),
+            "tip":       random.choice(GREEN_TIPS),
             "follow_up": None,
             "resources": [],
-            "greeting": greeting,
+            "greeting":  greeting,
+            "critical":  False,
         }
 
     elif level == DistressLevel.YELLOW:
         follow_up = random.choice(YELLOW_FOLLOWUP_QUESTIONS) if step == 1 else None
         return {
-            "level": level,
-            "score": score,
-            "message": random.choice(YELLOW_RESPONSES),
-            "tip": random.choice(YELLOW_TIPS),
+            "level":     level,
+            "score":     score,
+            "message":   random.choice(YELLOW_RESPONSES),
+            "tip":       random.choice(YELLOW_TIPS),
             "follow_up": follow_up,
-            "resources": [RESOURCES["mon_soutien_psy"], RESOURCES["medecin"]]
-            if step == 2
-            else [],
-            "greeting": greeting,
+            "resources": RESOURCES_YELLOW if step == 2 else [],
+            "greeting":  greeting,
+            "critical":  False,
         }
 
     else:  # RED
         follow_up = random.choice(RED_FOLLOWUP_QUESTIONS) if step == 1 else None
-        resources = [
-            RESOURCES["crisis_3114"],
-            RESOURCES["mon_soutien_psy"],
-            RESOURCES["fil_sante_jeunes"],
-        ]
         return {
-            "level": level,
-            "score": score,
-            "message": random.choice(RED_RESPONSES),
-            "tip": None,
+            "level":     level,
+            "score":     score,
+            "message":   random.choice(RED_RESPONSES),
+            "tip":       None,
             "follow_up": follow_up,
-            "resources": resources,
-            "greeting": greeting,
+            "resources": RESOURCES_RED,
+            "greeting":  greeting,
+            "critical":  False,
         }
 
 
-# ─── Rappels de suivi ─────────────────────────────────────────────────────────
-
 def compute_reminder(offset: str, mode: str) -> dict:
-    """
-    Calcule l'heure de rappel à partir de l'offset choisi.
-
-    offset : "1h" | "4h" | "tomorrow"
-    mode   : "kids" | "adult"
-    """
     now = datetime.now()
-
     if offset == "1h":
         scheduled_at = now + timedelta(hours=1)
-        label = f"aujourd'hui à {scheduled_at.strftime('%Hh%M')}"
+        label = f"aujourd'hui a {scheduled_at.strftime('%Hh%M')}"
     elif offset == "4h":
         scheduled_at = now + timedelta(hours=4)
-        if scheduled_at.date() > now.date():
-            label = f"demain à {scheduled_at.strftime('%Hh%M')}"
-        else:
-            label = f"aujourd'hui à {scheduled_at.strftime('%Hh%M')}"
-    else:  # tomorrow
-        scheduled_at = (now + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
-        label = "demain à 9h00"
-
-    if mode == "kids":
-        message = f"Super ! On se retrouve {label} 💙"
+        day = "demain" if scheduled_at.date() > now.date() else "aujourd'hui"
+        label = f"{day} a {scheduled_at.strftime('%Hh%M')}"
     else:
-        message = f"Rappel programmé pour {label}."
+        scheduled_at = (now + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
+        label = "demain a 9h00"
 
+    message = f"Super ! On se retrouve {label} 💙" if mode == "kids" else f"Rappel programme pour {label}."
     return {
-        "id": str(uuid.uuid4()),
-        "offset": offset,
-        "scheduled_at": scheduled_at.isoformat(),
+        "id":              str(uuid.uuid4()),
+        "offset":          offset,
+        "scheduled_at":    scheduled_at.isoformat(),
         "scheduled_label": label,
-        "message": message,
+        "message":         message,
     }
