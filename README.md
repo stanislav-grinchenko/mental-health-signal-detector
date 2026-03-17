@@ -129,6 +129,23 @@ python -m src.training.train \
 
 ---
 
+## Sécurité appliquée
+
+| Niveau | Correction | Fichier |
+|--------|-----------|---------|
+| P0 | Texte patient hashé avant log (anti-PHI) | `src/checkin/engine.py` |
+| P0 | Allowlist `model_type` (path traversal) | `src/api/dependencies.py` |
+| P0 | `joblib.load` restreint au dossier `models/` | `src/training/predict.py` |
+| P1 | Emoji validé par pattern Pydantic (5 valeurs) | `src/checkin/schemas.py` |
+| P1 | Texte : `min_length=1`, `max_length=1000` | `src/checkin/schemas.py` |
+| P1 | Middleware taille requête 64 KB (DoS) | `src/api/main.py` |
+| P1 | `/health` retourne 503 sur erreur inattendue | `src/api/main.py` |
+| P1 | `API_URL` validé regex contre SSRF | `src/checkin/app.py`, `src/dashboard/app.py` |
+| P1 | Rate limiting slowapi : 20/min checkin, 30/min predict, 10/min explain | `src/api/rate_limit.py` |
+| P1 | CORS restreint via `ALLOWED_ORIGINS` en production | `src/api/main.py` |
+
+---
+
 ## Tests & CI
 
 ```bash
