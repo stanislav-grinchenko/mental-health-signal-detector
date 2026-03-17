@@ -68,7 +68,7 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     #On drop les colonnes qui ne sont pas utiles
     #On va fusionner les colonnes de texte body et title 
     sub_df = df[["title", "body"]]
-    text = sub_df["title"] + " " + sub_df["body"]
+    text = sub_df["title"].fillna("") + " " + sub_df["body"].fillna("")
     df["title"] = text
     df.drop(columns=["Unnamed: 0", "body", "subreddit", "upvotes",
                      "created_utc", "num_comments"], inplace=True)
