@@ -44,7 +44,7 @@ export const RESOURCES: Record<string, Resource> = {
     label: "Mon Soutien Psy",
     detail: "Séances remboursées avec un psychologue",
     type: "website",
-    href: "https://monpsy.sante.gouv.fr",
+    href: "https://www.info.gouv.fr/actualite/mon-soutien-psy-12-seances-remboursees-par-an",
     urgent: false,
   },
   psycom: {
