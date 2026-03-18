@@ -237,8 +237,9 @@ docker-compose up --build
 | Ressource | Contact | Disponibilité |
 |-----------|---------|---------------|
 | 3114 — Prévention suicide | Appel gratuit | 24h/24, 7j/7 |
-| 119 — Enfance en danger | Appel gratuit | 24h/24, 7j/7 — enfants, ados, jeunes majeurs |
-| 3018 — Stop harcèlement | Appel gratuit, anonyme | 7j/7, 9h–23h — harcèlement et cyberharcèlement |
+| 119 — Enfance en danger | Appel gratuit | 24h/24, 7j/7 — à la maison (violence, abus) |
+| 3018 — Cyberharcèlement | Appel gratuit, anonyme | 7j/7, 9h–23h — sur les réseaux |
+| 3020 — Harcèlement scolaire | Appel gratuit | Lun–ven, 9h–20h — à l'école |
 | Mon Soutien Psy | monsoutienpsy.ameli.fr | 12 séances/an remboursées |
 | Fil Santé Jeunes (12-25 ans) | 0 800 235 236 | 9h–23h |
 | SAMU | 15 | Urgences 24h/24 |

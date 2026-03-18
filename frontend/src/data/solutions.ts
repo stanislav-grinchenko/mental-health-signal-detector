@@ -86,10 +86,18 @@ export const RESOURCES: Record<string, Resource> = {
   },
   antiHarcelement: {
     id: "3018",
-    label: "3018 — Stop harcèlement",
-    detail: "Gratuit, anonyme, 7j/7 · 9h–23h — harcèlement et cyberharcèlement",
+    label: "3018 — Cyberharcèlement",
+    detail: "Gratuit, anonyme, 7j/7 · 9h–23h — harcèlement sur les réseaux",
     type: "phone",
     href: "tel:3018",
+    urgent: false,
+  },
+  harcelementScolaire: {
+    id: "3020",
+    label: "3020 — Harcèlement scolaire",
+    detail: "Gratuit, lun–ven · 9h–20h — harcèlement à l'école",
+    type: "phone",
+    href: "tel:3020",
     urgent: false,
   },
 };
@@ -563,12 +571,12 @@ export const RESOURCES_BY_LEVEL: Record<number, { kids: Resource[]; adult: Resou
   0: { kids: [], adult: [] },
   1: { kids: [], adult: [] },
   2: {
-    kids: [RESOURCES.procheEnfant, RESOURCES.antiHarcelement, RESOURCES.filSanteJeunes],
+    kids: [RESOURCES.procheEnfant, RESOURCES.antiHarcelement, RESOURCES.harcelementScolaire, RESOURCES.filSanteJeunes],
     adult: [RESOURCES.proche, RESOURCES.monSoutienPsy, RESOURCES.psycom],
   },
   3: {
     // 3114 + 119 inclus au niveau 3 — prévention active, danger potentiel
-    kids: [RESOURCES.line3114, RESOURCES.enfanceEnDanger, RESOURCES.antiHarcelement, RESOURCES.procheEnfant],
+    kids: [RESOURCES.line3114, RESOURCES.enfanceEnDanger, RESOURCES.antiHarcelement, RESOURCES.harcelementScolaire, RESOURCES.procheEnfant],
     adult: [RESOURCES.medecinTraitant, RESOURCES.line3114, RESOURCES.monSoutienPsy],
   },
   4: {
