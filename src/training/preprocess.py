@@ -1,11 +1,11 @@
-import nltk
-from nltk.tokenize import word_tokenize
-from nltk.corpus import stopwords
-from nltk.stem import WordNetLemmatizer
-import re
 import html
+import re
 import string
 
+import nltk
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+from nltk.tokenize import word_tokenize
 
 _NEGATION_WORDS = {"no", "not", "nor", "never", "n't"}
 _STOP_WORDS = None
@@ -27,53 +27,86 @@ _CONTRACTIONS = {
 
 
 def _expand_contractions(text: str) -> str:
+    """
+    Expand common English contractions in the text.
+    For example, "can't" becomes "can not", "I'm" becomes "I am", etc.
+    """
     for contraction, expanded in _CONTRACTIONS.items():
         text = re.sub(re.escape(contraction), expanded, text)
     return text
 
 
 def _get_stop_words() -> set:
+    """
+    Get the set of English stop words, excluding negation words.
+    This is important for mental health signal detection,
+    as negation can change the meaning of a sentence (e.g., "not happy" vs "happy").
+    """
     global _STOP_WORDS
     if _STOP_WORDS is None:
-        _STOP_WORDS = set(stopwords.words('english')) - _NEGATION_WORDS
+        _STOP_WORDS = set(stopwords.words("english")) - _NEGATION_WORDS
     return _STOP_WORDS
 
 
 def _wordnet_pos(treebank_tag: str) -> str:
-    if treebank_tag.startswith('J'):
-        return 'a'
-    if treebank_tag.startswith('V'):
-        return 'v'
-    if treebank_tag.startswith('N'):
-        return 'n'
-    if treebank_tag.startswith('R'):
-        return 'r'
-    return 'n'
+    """Convert Treebank POS tags to WordNet POS tags for lemmatization.
+    Treebank tags start with:
+    - J for adjectives
+    - V for verbs
+    - N for nouns
+    - R for adverbs
+    If the tag doesn't match any of these, we default to noun ('n')."""
+    if treebank_tag.startswith("J"):
+        return "a"
+    if treebank_tag.startswith("V"):
+        return "v"
+    if treebank_tag.startswith("N"):
+        return "n"
+    if treebank_tag.startswith("R"):
+        return "r"
+    return "n"
 
-def preprocess_text(text, remove_stopwords=True, remove_punctuation=True, lemmatize=True):
+
+def preprocess_text(
+    text, remove_stopwords=True, remove_punctuation=True, lemmatize=True
+):
+    """
+    Preprocess the input text by
+    normalizing, tokenizing, removing stop words and punctuation and lemmatizing.
+    The function can be configured to enable/disable each step.
+    """
     tokens = word_tokenize(text)
     tokens = [t.lower() for t in tokens]
-    
+
     if remove_punctuation:
         tokens = [
-            t for t in tokens
-            if t in {'!', '?'} or re.fullmatch(r"[a-z0-9_]+", t)
+            t for t in tokens if t in {"!", "?"} or re.fullmatch(r"[a-z0-9_]+", t)
         ]
-    
+
     if remove_stopwords:
         stop_words = _get_stop_words()
         tokens = [t for t in tokens if t not in stop_words]
-    
+
     if lemmatize:
         try:
             pos_tags = nltk.pos_tag(tokens)
         except LookupError:
-            pos_tags = [(t, 'N') for t in tokens]
+            pos_tags = [(t, "N") for t in tokens]
         tokens = [_LEMMATIZER.lemmatize(t, _wordnet_pos(pos)) for t, pos in pos_tags]
-    
-    return ' '.join(tokens)
+
+    return " ".join(tokens)
+
 
 def clean_text(text: str) -> str:
+    """
+    Clean and normalize the input text by:
+    - Decoding HTML entities
+    - Normalizing URLs, user mentions, subreddit mentions, hashtags, and emojis
+    - Handling repeated punctuation and contractions
+    - Lowercasing the text
+    - Preserving important signals like uppercase emphasis and temporal/numeric cues
+    This function is designed to retain as much signal as possible
+    for mental health detection,"""
     # Decode entities before normalization.
     text = html.unescape(text)
 
@@ -86,8 +119,15 @@ def clean_text(text: str) -> str:
     text = re.sub(r"#(\w+)", r" hashtag_\1 ", text)
 
     # Convert common emoticons and Unicode emojis to signal tokens.
-    text = re.sub(r"(:\)|:-\)|:d|:-d|<3|;\))", " emoji_positive ", text, flags=re.IGNORECASE)
-    text = re.sub(r"(:\(|:-\(|:'\(|:'-\(|:/|:-/|:\|)", " emoji_negative ", text, flags=re.IGNORECASE)
+    text = re.sub(
+        r"(:\)|:-\)|:d|:-d|<3|;\))", " emoji_positive ", text, flags=re.IGNORECASE
+    )
+    text = re.sub(
+        r"(:\(|:-\(|:'\(|:'-\(|:/|:-/|:\|)",
+        " emoji_negative ",
+        text,
+        flags=re.IGNORECASE,
+    )
     text = re.sub(r"[\U0001F300-\U0001FAFF]", " emoji_token ", text)
 
     # Keep uppercase emphasis signal before lowercasing.
@@ -102,11 +142,14 @@ def clean_text(text: str) -> str:
 
     text = text.replace("...", "three_dots")
 
-    # Keep ! and ? for emotional intensity; map repeated punctuation to dedicated tokens.
+    # Keep ! and ? for emotional intensity
+    # map repeated punctuation to dedicated tokens.
     text = re.sub(r"!{2,}", " exclam_repeat ", text)
     text = re.sub(r"\?{2,}", " question_repeat ", text)
 
-    punctuation_to_remove = string.punctuation.replace("!", "").replace("?", "").replace("'", "")
+    punctuation_to_remove = (
+        string.punctuation.replace("!", "").replace("?", "").replace("'", "")
+    )
     text = re.sub(f"[{re.escape(punctuation_to_remove)}]", "", text)
 
     # Reduce elongated forms while preserving emphasis signal.

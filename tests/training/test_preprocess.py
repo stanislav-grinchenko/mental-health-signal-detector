@@ -1,7 +1,13 @@
 import src.training.preprocess as preprocess_module
 from src.training.preprocess import clean_text, preprocess_text
 
+
 def test_clean_text():
+    """
+    Test the clean_text function by checking if it correctly normalizes
+    URLs, user mentions, subreddit mentions, hashtags, emojis, repeated punctuation,
+    and contractions.
+    """
     text = "See https://example.com u/tester in r/python #Hope :) 😢"
     text2 = "HELP me at 10:30pm... Why??? no!!! 42 soooo"
     text3 = "Tom &amp; Jerry can&#39;t sleep"
@@ -36,13 +42,28 @@ def test_clean_text():
 
 
 def test_preprocess_text(monkeypatch):
+    """
+    Test the preprocess_text function by checking if it correctly tokenizes,
+    lowercases, removes stop words and punctuation, and lemmatizes the text.
+    We use monkeypatching to replace the word_tokenize, pos_tag, and lemmat"""
     text = "Cats are RUNNING, and dogs! Not sleeping?"
     text2 = "I am at home."
     text3 = "played better cars"
 
     def fake_word_tokenize(value):
         mapping = {
-            text: ["Cats", "are", "RUNNING", ",", "and", "dogs", "!", "Not", "sleeping", "?"],
+            text: [
+                "Cats",
+                "are",
+                "RUNNING",
+                ",",
+                "and",
+                "dogs",
+                "!",
+                "Not",
+                "sleeping",
+                "?",
+            ],
             text2: ["I", "am", "at", "home", "."],
             text3: ["played", "better", "cars"],
         }
@@ -82,7 +103,9 @@ def test_preprocess_text(monkeypatch):
         return [(token, tag_map.get(token, "NN")) for token in tokens]
 
     monkeypatch.setattr(preprocess_module, "word_tokenize", fake_word_tokenize)
-    monkeypatch.setattr(preprocess_module, "_get_stop_words", lambda: {"are", "and", "i", "am", "at"})
+    monkeypatch.setattr(
+        preprocess_module, "_get_stop_words", lambda: {"are", "and", "i", "am", "at"}
+    )
     monkeypatch.setattr(preprocess_module.nltk, "pos_tag", fake_pos_tag)
     monkeypatch.setattr(preprocess_module, "_LEMMATIZER", FakeLemmatizer())
 
@@ -97,8 +120,12 @@ def test_preprocess_text(monkeypatch):
     assert "are" not in cleaned
     assert "and" not in cleaned
 
-    cleaned2 = preprocess_text(text2, remove_stopwords=False, remove_punctuation=False, lemmatize=False)
+    cleaned2 = preprocess_text(
+        text2, remove_stopwords=False, remove_punctuation=False, lemmatize=False
+    )
     assert cleaned2 == "i am at home ."
 
-    cleaned3 = preprocess_text(text3, remove_stopwords=False, remove_punctuation=True, lemmatize=True)
+    cleaned3 = preprocess_text(
+        text3, remove_stopwords=False, remove_punctuation=True, lemmatize=True
+    )
     assert cleaned3 == "play good car"
