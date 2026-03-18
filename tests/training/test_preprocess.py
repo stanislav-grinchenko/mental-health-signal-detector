@@ -1,6 +1,5 @@
 import src.training.preprocess as preprocess_module
 from src.training.preprocess import clean_text, preprocess_text
-import nltk
 
 def test_clean_text():
     text = "See https://example.com u/tester in r/python #Hope :) 😢"
