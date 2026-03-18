@@ -264,10 +264,9 @@ export default function Solutions() {
               : "bg-gradient-to-br from-teal-300 to-emerald-400"
             }`}>
               {solution.level >= 4 ? (
-                {mode === "kids"
+                mode === "kids"
                   ? <HeartHandshake className="w-8 h-8 text-white" />
                   : <Heart className="w-8 h-8 text-white" fill="white" />
-                }
               ) : solution.level >= 3 ? (
                 <Shield className="w-8 h-8 text-white" />
               ) : solution.level >= 2 ? (
