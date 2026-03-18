@@ -92,20 +92,4 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     df.dropna(inplace=True)
-    df = balance_classes(df, label_col="label")
-
     return df
-
-
-def balance_classes(df, label_col, random_state=42):
-    """Balance the classes in the dataset."""
-    class_counts = df[label_col].value_counts()
-    min_count = class_counts.min()
-    balanced_dfs = []
-
-    for label in class_counts.index:
-        label_df = df[df[label_col] == label]
-        balanced_dfs.append(label_df.sample(min_count, random_state=random_state))
-
-    balanced_df = pd.concat(balanced_dfs)
-    return balanced_df.sample(frac=1, random_state=random_state).reset_index(drop=True)
