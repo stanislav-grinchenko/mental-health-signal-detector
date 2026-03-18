@@ -36,7 +36,7 @@ def _safe_load_joblib(path: Path):
         FileNotFoundError: If the resolved path does not exist on disk.
     """
     resolved = path.resolve()
-    if not str(resolved).startswith(str(_MODELS_DIR)):
+    if not resolved.is_relative_to(_MODELS_DIR.resolve()):
         raise ValueError(f"Chemin de modèle non autorisé : {resolved}")
     if not resolved.exists():
         raise FileNotFoundError(f"Fichier modèle introuvable : {resolved}")

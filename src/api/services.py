@@ -42,7 +42,7 @@ def run_explain(request: ExplainRequest, model) -> ExplainResponse:
     each token present in the text.  This is valid for linear models but is not
     a strict SHAP value (intercept and feature-coalition effects are ignored).
     For strict SHAP values use ``shap.LinearExplainer`` as done in
-    ``evaluate.py::explain_with_shap()``.
+    ``src.training.evaluate.explain_with_shap``.
 
     Args:
         request: Explanation request containing the raw text and the maximum
