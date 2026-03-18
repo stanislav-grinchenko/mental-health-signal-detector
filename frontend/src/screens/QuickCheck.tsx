@@ -213,7 +213,14 @@ export default function QuickCheck() {
 
         {/* Barre de progression — masquée sur le bridge */}
         {phase === "questions" && (
-          <div className="flex gap-1.5 mb-6">
+          <div
+            className="flex gap-1.5 mb-6"
+            role="progressbar"
+            aria-valuenow={currentIndex + 1}
+            aria-valuemin={1}
+            aria-valuemax={total}
+            aria-label={`Question ${currentIndex + 1} sur ${total}`}
+          >
             {questions.map((_, i) => (
               <div
                 key={i}
@@ -308,18 +315,25 @@ export default function QuickCheck() {
               </h2>
 
               {/* Options */}
-              <div className="space-y-2 pt-2">
+              <div
+                className="space-y-2 pt-2"
+                role="radiogroup"
+                aria-label={mode === "kids" ? question.kids : question.adult}
+              >
                 {question.options.map((opt) => (
                   <motion.button
                     key={opt.value}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => handleAnswer(opt.value)}
+                    role="radio"
+                    aria-checked={false}
+                    aria-label={mode === "kids" ? opt.kids : opt.adult}
                     className="w-full text-left bg-white/80 backdrop-blur-sm rounded-2xl px-5 py-4 shadow-sm border border-white hover:shadow-md hover:border-teal-200 transition-all flex items-center justify-between group"
                   >
                     <span className="text-gray-700 text-sm font-medium">
                       {mode === "kids" ? opt.kids : opt.adult}
                     </span>
-                    <div className="w-4 h-4 rounded-full border-2 border-gray-300 group-hover:border-teal-400 group-hover:bg-teal-400 transition-all flex-shrink-0" />
+                    <div className="w-4 h-4 rounded-full border-2 border-gray-300 group-hover:border-teal-400 group-hover:bg-teal-400 transition-all flex-shrink-0" aria-hidden="true" />
                   </motion.button>
                 ))}
               </div>

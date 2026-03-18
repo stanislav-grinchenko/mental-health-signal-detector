@@ -88,16 +88,18 @@ function ActionCard({ action, index, mode }: { action: MicroAction; index: numbe
     >
       <button
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+        aria-label={`${action.title} — ${action.duration}. ${expanded ? "Réduire" : "Voir les instructions"}`}
         className="w-full flex items-center gap-3 p-4 text-left"
       >
-        <div className="w-10 h-10 bg-teal-100 rounded-xl flex items-center justify-center flex-shrink-0">
+        <div className="w-10 h-10 bg-teal-100 rounded-xl flex items-center justify-center flex-shrink-0" aria-hidden="true">
           <Icon className="w-5 h-5 text-teal-600" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="font-medium text-gray-800 text-sm">{action.title}</div>
           <div className="text-xs text-gray-400 mt-0.5">{action.duration}</div>
         </div>
-        <motion.div animate={{ rotate: expanded ? 180 : 0 }} transition={{ duration: 0.2 }}>
+        <motion.div animate={{ rotate: expanded ? 180 : 0 }} transition={{ duration: 0.2 }} aria-hidden="true">
           <ChevronDown className="w-4 h-4 text-gray-400" />
         </motion.div>
       </button>
@@ -124,12 +126,14 @@ function ActionCard({ action, index, mode }: { action: MicroAction; index: numbe
                   </span>
                   <button
                     onClick={() => handleFeedback("helpful")}
+                    aria-label={`${action.title} : oui, ça m'a aidé`}
                     className="text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors"
                   >
                     {mode === "kids" ? "👍 Oui !" : "Oui"}
                   </button>
                   <button
                     onClick={() => handleFeedback("not_helpful")}
+                    aria-label={`${action.title} : pas vraiment aidé`}
                     className="text-xs px-2.5 py-1 rounded-full bg-gray-50 text-gray-500 hover:bg-gray-100 transition-colors"
                   >
                     {mode === "kids" ? "😐 Pas vraiment" : "Pas vraiment"}
@@ -192,12 +196,13 @@ function ResourceCard({ resource, index }: { resource: Resource; index: number }
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
+            aria-label={`Site web de ${resource.label} (s'ouvre dans un nouvel onglet)`}
             className={`inline-flex items-center gap-1 text-xs mt-1 underline underline-offset-2 ${
               resource.urgent ? "text-white/70 hover:text-white" : "text-teal-500 hover:text-teal-700"
             }`}
           >
             Voir le site
-            <ExternalLink className="w-3 h-3" />
+            <ExternalLink className="w-3 h-3" aria-hidden="true" />
           </a>
         )}
       </div>
@@ -211,7 +216,12 @@ function ResourceCard({ resource, index }: { resource: Resource; index: number }
       transition={{ delay: 0.5 + index * 0.08 }}
     >
       {resource.href ? (
-        <a href={resource.href} target={isPhone ? "_self" : "_blank"} rel="noopener noreferrer">
+        <a
+          href={resource.href}
+          target={isPhone ? "_self" : "_blank"}
+          rel="noopener noreferrer"
+          aria-label={`${resource.label}${resource.detail ? ` — ${resource.detail}` : ""}${isPhone ? " (appel téléphonique)" : ""}`}
+        >
           {content}
         </a>
       ) : (
@@ -609,21 +619,23 @@ export default function Solutions() {
               {mode === "kids" ? "Et maintenant, qu'est-ce qui t'aiderait le plus ?" : "Et maintenant, qu'est-ce qui vous aiderait le plus ?"}
             </p>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2" role="group" aria-label={mode === "kids" ? "Que veux-tu faire maintenant ?" : "Que souhaitez-vous faire maintenant ?"}>
               {[
-                { key: "breath", Icon: BreathIcon,    label: mode === "kids" ? "Respirer 2 min"           : "Respirer 2 minutes" },
-                { key: "write",  Icon: PenLine,        label: mode === "kids" ? "Écrire ce que je ressens" : "Écrire ce que je ressens" },
-                { key: "talk",   Icon: MessageCircle,  label: mode === "kids" ? "Parler à quelqu'un"       : "Parler à quelqu'un" },
+                { key: "breath", Icon: BreathIcon,    label: mode === "kids" ? "Respirer 2 min"             : "Respirer 2 minutes" },
+                { key: "write",  Icon: PenLine,        label: mode === "kids" ? "Écrire ce que je ressens"   : "Écrire ce que je ressens" },
+                { key: "talk",   Icon: MessageCircle,  label: mode === "kids" ? "Parler à quelqu'un"         : "Parler à quelqu'un" },
                 { key: "later",  Icon: RotateCcw,      label: mode === "kids" ? "Refaire un point plus tard" : "Refaire un point plus tard" },
               ].map(({ key, Icon, label }) => (
                 <button
                   key={key}
                   onClick={() => handleQuickAction(key)}
+                  aria-pressed={activeQuick === key}
+                  aria-label={label}
                   className={`bg-white/70 backdrop-blur-sm rounded-2xl p-3 flex items-center gap-2 shadow-sm text-left transition-all hover:bg-white/90 ${
                     activeQuick === key ? "ring-2 ring-teal-300 bg-white/90" : ""
                   }`}
                 >
-                  <Icon className="w-4 h-4 text-teal-500 flex-shrink-0" />
+                  <Icon className="w-4 h-4 text-teal-500 flex-shrink-0" aria-hidden="true" />
                   <span className="text-xs text-gray-600 leading-tight">{label}</span>
                 </button>
               ))}
@@ -648,8 +660,9 @@ export default function Solutions() {
                       animate={{ scale: breathPhase === "inhale" ? 1.5 : 1, opacity: breathPhase === "inhale" ? 1 : 0.55 }}
                       transition={{ duration: 5, ease: "easeInOut" }}
                       className="w-20 h-20 rounded-full bg-gradient-to-br from-teal-300 to-cyan-400 shadow-lg"
+                      aria-hidden="true"
                     />
-                    <p className="text-sm font-medium text-teal-600">
+                    <p className="text-sm font-medium text-teal-600" aria-live="polite" aria-atomic="true">
                       {breathPhase === "inhale" ? "Inspirez..." : "Expirez..."}
                     </p>
                     <p className="text-xs text-gray-400">5 secondes · répétez 3 minutes</p>

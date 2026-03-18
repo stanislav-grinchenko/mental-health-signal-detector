@@ -159,11 +159,21 @@ export default function EmotionSelection() {
 
       {/* Emotion Cards */}
       <div className="flex-1 px-4 overflow-y-auto" style={{ paddingBottom: hasSelection ? "120px" : "48px" }}>
-        <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
+        <div
+          className="grid grid-cols-2 gap-4 max-w-md mx-auto"
+          role="group"
+          aria-label={mode === "kids" ? "Choisir une ou plusieurs émotions" : "Sélectionner une ou plusieurs émotions"}
+        >
           {emotions.map((emotion, index) => {
             const Icon = emotion.icon;
             const isSelected = selectedIds.includes(emotion.id);
             const isDisabled = !isSelected && selectedIds.length >= MAX_SELECT;
+            const emotionLabel = mode === "kids" ? emotion.labelKids : emotion.label;
+            const ariaLabel = isDisabled
+              ? `${emotionLabel} — non disponible, maximum atteint`
+              : isSelected
+              ? `${emotionLabel} — sélectionné, cliquer pour désélectionner`
+              : `${emotionLabel}${mode === "adult" ? ` — ${emotion.description}` : ""}`;
 
             return (
               <motion.div
@@ -177,6 +187,8 @@ export default function EmotionSelection() {
                   whileTap={{ scale: isDisabled ? 1 : 0.95 }}
                   onClick={() => !isDisabled && handleToggle(emotion)}
                   aria-pressed={isSelected}
+                  aria-disabled={isDisabled}
+                  aria-label={ariaLabel}
                   className={`w-full aspect-square bg-gradient-to-br ${emotion.gradient} rounded-3xl shadow-lg transition-all flex flex-col items-center justify-center gap-3 p-4 relative overflow-hidden ${
                     mode === "kids" ? "border-4 border-white" : "border-2 border-white/50"
                   } ${isSelected ? "ring-4 ring-white/80 shadow-2xl" : ""} ${
@@ -189,7 +201,7 @@ export default function EmotionSelection() {
                     </div>
                   )}
 
-                  <div className={`text-white drop-shadow-lg ${isSelected ? "scale-110" : ""} transition-transform`}>
+                  <div className={`text-white drop-shadow-lg ${isSelected ? "scale-110" : ""} transition-transform`} aria-hidden="true">
                     <Icon
                       className={mode === "kids" ? "w-16 h-16" : "w-14 h-14"}
                       strokeWidth={mode === "kids" ? 2.5 : 1.5}
@@ -245,6 +257,7 @@ export default function EmotionSelection() {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={handleContinue}
+              aria-label={`Continuer avec ${selectedIds.length === 1 ? "l'émotion sélectionnée" : `les ${selectedIds.length} émotions sélectionnées`}`}
               className="w-full max-w-md mx-auto flex items-center justify-center gap-3 bg-gradient-to-r from-teal-400 via-cyan-400 to-blue-400 text-white rounded-3xl py-5 shadow-xl font-medium text-base"
             >
               <span>
