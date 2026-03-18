@@ -1,13 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, useLocation } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Heart, ArrowRight, Phone, ExternalLink, ChevronDown,
   Sparkles, Shield, AlertTriangle, BookOpen, Wind, Users,
-  Wind as BreathIcon, PenLine, MessageCircle, RotateCcw,
+  Wind as BreathIcon, PenLine, MessageCircle, RotateCcw, Activity,
 } from "lucide-react";
 import { computeSolution } from "../lib/solutionEngine";
-import type { DiagnosticProfile } from "../types/diagnostic";
+import { API_BASE } from "../lib/api";
+import type { DiagnosticProfile, ClinicalDimension } from "../types/diagnostic";
 import type { SolutionResponse, MicroAction, Resource, TherapeuticBrick } from "../types/solutions";
 
 // ─── Helpers visuels ─────────────────────────────────────────────────────────
@@ -40,6 +41,13 @@ const BRICK_LABEL: Record<TherapeuticBrick, string> = {
   social_support:    "Soutien social",
   professional:      "Orientation professionnelle",
   crisis:            "Protocole de sécurité",
+};
+
+const DIM_LABEL: Record<ClinicalDimension, string> = {
+  burnout:           "Épuisement",
+  anxiety:           "Anxiété",
+  depression_masked: "Humeur dépressive",
+  dysregulation:     "Dysrégulation",
 };
 
 // ─── Sous-composants ─────────────────────────────────────────────────────────
@@ -152,14 +160,61 @@ export default function Solutions() {
   const diagnosticProfile = location.state?.diagnosticProfile as DiagnosticProfile | undefined;
   const mode = diagnosticProfile?.mode ?? "kids";
 
+  // Initialisation immédiate avec le moteur local (pas de flash de chargement)
+  const [solution, setSolution] = useState<SolutionResponse | null>(() =>
+    diagnosticProfile ? computeSolution(diagnosticProfile) : null
+  );
+  const abortRef = useRef<AbortController | null>(null);
+  const isMountedRef = useRef(true);
+
   // Guard : accès direct sans flow → redirection
   useEffect(() => {
     if (!diagnosticProfile) navigate("/", { replace: true });
   }, [diagnosticProfile, navigate]);
 
-  if (!diagnosticProfile) return null;
+  // Cleanup au démontage
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      abortRef.current?.abort();
+    };
+  }, []);
 
-  const solution: SolutionResponse = computeSolution(diagnosticProfile);
+  // Appel API en background — met à jour silencieusement (fondation LLM futur)
+  useEffect(() => {
+    if (!diagnosticProfile) return;
+    abortRef.current = new AbortController();
+
+    fetch(`${API_BASE}/solutions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(diagnosticProfile),
+      signal: abortRef.current.signal,
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        if (!isMountedRef.current) return;
+        // Map therapeuticBrick vers chaque action (l'API n'expose pas brick par action)
+        setSolution({
+          ...data,
+          microActions: data.microActions.map((a: MicroAction) => ({
+            ...a,
+            brick: data.therapeuticBrick,
+          })),
+        });
+      })
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        // Le moteur local est déjà affiché — rien à faire
+      });
+  }, [diagnosticProfile]);
+
+  if (!diagnosticProfile || !solution) return null;
+
   const levelConfig = LEVEL_CONFIG[solution.level];
   const BrickIcon = BRICK_ICON[solution.therapeuticBrick];
 
@@ -259,6 +314,77 @@ export default function Solutions() {
             <p className="text-gray-700 leading-relaxed text-sm">{solution.message}</p>
           </div>
         </motion.div>
+
+        {/* Score discret — adulte, niveaux 1-3 uniquement */}
+        {mode === "adult" && solution.level >= 1 && solution.level <= 3 && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35 }}
+            className="bg-white/60 backdrop-blur-sm rounded-2xl p-4 shadow-sm"
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <Activity className="w-3.5 h-3.5 text-gray-400" />
+              <span className="text-xs text-gray-400 font-medium uppercase tracking-wide">Analyse</span>
+            </div>
+
+            {/* Niveau de triage — points */}
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-xs text-gray-500 w-16 shrink-0">Niveau</span>
+              <div className="flex gap-1.5">
+                {[0, 1, 2, 3, 4].map((l) => (
+                  <div
+                    key={l}
+                    className={`w-2 h-2 rounded-full ${
+                      l <= solution.level
+                        ? solution.level >= 3 ? "bg-orange-400"
+                          : solution.level >= 2 ? "bg-amber-400"
+                          : "bg-sky-400"
+                        : "bg-gray-200"
+                    }`}
+                  />
+                ))}
+              </div>
+              <span className={`text-xs font-medium ${levelConfig.badge} px-2 py-0.5 rounded-full`}>
+                {levelConfig.label}
+              </span>
+            </div>
+
+            {/* Score de détresse */}
+            {diagnosticProfile.finalScore !== null && (
+              <div className="flex items-center gap-3 mb-2">
+                <span className="text-xs text-gray-500 w-16 shrink-0">Score</span>
+                <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+                  <div
+                    className={`h-1.5 rounded-full ${
+                      solution.level >= 3 ? "bg-orange-400"
+                        : solution.level >= 2 ? "bg-amber-400"
+                        : "bg-sky-400"
+                    }`}
+                    style={{ width: `${Math.round(diagnosticProfile.finalScore * 100)}%` }}
+                  />
+                </div>
+                <span className="text-xs text-gray-400 w-8 text-right">
+                  {Math.round(diagnosticProfile.finalScore * 100)}%
+                </span>
+              </div>
+            )}
+
+            {/* Dimensions cliniques détectées */}
+            {diagnosticProfile.clinicalDimensions.length > 0 && (
+              <div className="flex items-start gap-3">
+                <span className="text-xs text-gray-500 w-16 shrink-0 pt-0.5">Thèmes</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {diagnosticProfile.clinicalDimensions.map((dim) => (
+                    <span key={dim} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                      {DIM_LABEL[dim]}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
 
         {/* Ressources urgentes — niveau 4 en tête */}
         {solution.escalationRequired && (

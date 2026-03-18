@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router";
-import { API_BASE } from "../lib/api";
+import { API_BASE, MODEL_TYPE } from "../lib/api";
 
 const VALID_EMOTIONS = new Set(["joy", "sadness", "anger", "fear", "stress", "calm", "tiredness", "pride"]);
 
@@ -77,7 +77,7 @@ export default function Expression() {
       const res = await fetch(`${API_BASE}/predict`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: text.trim(), model_type: "distilbert" }),
+        body: JSON.stringify({ text: text.trim(), model_type: MODEL_TYPE }),
         signal: abortRef.current.signal,
       });
 

@@ -1,4 +1,4 @@
-# Dépendances API slim — sans torch/transformers/ML (déploiement sans modèle)
+# Dépendances API slim — baseline ML uniquement (sans torch/transformers)
 # Utilisé par Dockerfile.api.slim pour Render / Railway / Fly.io
 
 # API
@@ -13,6 +13,12 @@ slowapi>=0.1.9             # rate limiting
 python-dotenv==1.0.1
 pyyaml==6.0.1
 loguru==0.7.2
+
+# ML baseline — scikit-learn + joblib (CPU uniquement, ~10 Mo)
+# DistilBERT/torch exclus — trop lourds pour le free tier
+scikit-learn>=1.5.0
+joblib>=1.4.0
+numpy>=1.26.0
 
 # Langue
 langdetect==1.0.9

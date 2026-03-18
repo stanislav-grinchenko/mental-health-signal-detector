@@ -1,8 +1,8 @@
-# Dockerfile.api.slim — déploiement sans modèles ML (test / demo)
+# Dockerfile.api.slim — baseline ML (TF-IDF + LR) inclus, DistilBERT exclu
 #
-# Le modèle DistilBERT (2.6 Go) est exclu.
-# /predict retourne 503 si appelé, les autres endpoints (/solutions, /checkin)
-# fonctionnent normalement. Le frontend gère le fallback gracieusement.
+# Le modèle baseline (989 Ko) est copié dans l'image — /predict fonctionne.
+# DistilBERT (2.6 Go) est exclu (trop lourd pour le free tier).
+# Le frontend utilise model_type=baseline en production.
 
 FROM python:3.11-slim
 
@@ -19,6 +19,7 @@ RUN pip install --no-cache-dir -r requirements.slim.txt
 
 COPY src/ ./src/
 COPY configs/ ./configs/
+COPY models/baseline.joblib ./models/
 
 ENV PYTHONPATH=/app
 ENV PORT=8000

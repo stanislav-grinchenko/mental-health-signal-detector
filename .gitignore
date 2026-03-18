@@ -46,6 +46,7 @@ data/raw/
 data/processed/
 data/external/
 models/
+!models/baseline.joblib
 artifacts/
 
 # Streamlit

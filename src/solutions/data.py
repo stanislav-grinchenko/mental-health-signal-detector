@@ -16,6 +16,7 @@ RESOURCES: dict[str, Resource] = {
         detail="3114 — Gratuit, confidentiel, 24h/24",
         type="phone",
         href="tel:3114",
+        urgent=True,
     ),
     "samu": Resource(
         id="samu",
@@ -23,6 +24,7 @@ RESOURCES: dict[str, Resource] = {
         detail="15 — Urgences médicales",
         type="phone",
         href="tel:15",
+        urgent=True,
     ),
     "filSanteJeunes": Resource(
         id="fil-sante-jeunes",

@@ -58,6 +58,7 @@ class Resource(BaseModel):
     detail: str | None = None
     type: ResourceType
     href: str | None = None
+    urgent: bool = False
 
 
 class MicroAction(BaseModel):
