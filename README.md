@@ -2,20 +2,35 @@
 
 **Artefact School of Data — Bootcamp Data Science, Mars 2026**
 
-Système AI de détection de signaux de détresse mentale via NLP sur textes Reddit, avec une application de check-in matinal « Comment vas-tu ce matin ? » à destination des adolescents et adultes.
+Système AI de détection de signaux de détresse mentale via NLP, avec une application web React mobile-first « Comment vas-tu ce matin ? » à destination des adolescents et adultes.
+
+Pipeline clinique en 4 étapes : valorisation du choix d'émotion → analyse ML du texte libre → détection d'aberrations (masking, idéation) → solutions thérapeutiques personnalisées (stepped-care NICE).
 
 ---
 
 ## Architecture
 
 ```
+frontend/                      React web app (Vite + TypeScript + Tailwind CSS v4)
+├── src/screens/               6 écrans : Welcome → EmotionSelection → SelfReport
+│                                         → Expression → Support → Solutions
+├── src/lib/solutionEngine.ts  Moteur local stepped-care (triage 0-4, CBT/mindfulness)
+└── src/types/diagnostic.ts    Contrat DiagnosticProfile frontend ↔ backend
+
 src/
-├── api/          FastAPI REST API (/health, /predict, /checkin)
-├── checkin/      App check-in "Comment vas-tu ce matin ?" (Gradio)
+├── api/          FastAPI REST API (/health, /predict, /solutions)
+├── solutions/    Moteur recommandation : triage, micro-actions, ressources, schémas
 ├── common/       Config, logging, détection/traduction langue FR↔EN
 ├── dashboard/    Dashboard Streamlit + explainability SHAP
 └── training/     Preprocessing, entraînement, évaluation des modèles
 ```
+
+**Déploiement**
+
+| Service | URL | Stack |
+|---------|-----|-------|
+| Backend | https://mental-health-signal-detector.onrender.com | Docker slim (FastAPI + baseline ML) |
+| Frontend | https://mental-health-signal-detector.vercel.app | Vercel SPA (React + Vite) |
 
 ---
 
@@ -26,7 +41,7 @@ src/
 | Baseline TF-IDF + LR | 388K | 88.9% | — | Référence prod |
 | DistilBERT v1 | DAIR-AI 16K | 96.8% | — | Fine-tuning initial |
 | **DistilBERT v2** | **388K combiné** | **89.0%** | **86.5%** | **Best epoch 2 / 3** |
-| DistilBERT v2.1 *(prêt)* | 388K + CustomTrainer | — | — | EarlyStop + class weights |
+| DistilBERT v2.1 *(évalué)* | 388K + EarlyStop + class weights | — | 86.06% | eval_loss ↑ (overfit) — v2 reste champion |
 
 DistilBERT v2 — résultats Colab T4 GPU (3 epochs, batch=32) :
 
@@ -37,6 +52,10 @@ DistilBERT v2 — résultats Colab T4 GPU (3 epochs, batch=32) :
 | 3 | 0.114 | 0.348 | 88.97% | 86.5% (overfit) |
 
 > `load_best_model_at_end=True` → checkpoint epoch 2 conservé. Bat le baseline LR (78.6% sur eRisk25).
+
+**Verdict v2.1 :** eval_loss explose epochs 3-4 (0.430 → 0.638) malgré F1 Macro en hausse → overfitting. Best F1 Macro 86.06% < v2 86.5%. **DistilBERT v2 reste le modèle de production.**
+
+**Prod :** baseline TF-IDF+LR déployé sur Render slim (CPU, 989 KB). DistilBERT v2 réservé aux instances avec GPU.
 
 ---
 
@@ -54,39 +73,53 @@ DistilBERT v2 — résultats Colab T4 GPU (3 epochs, batch=32) :
 
 ## App "Comment vas-tu ce matin ?"
 
-Application de check-in matinal ludique pour ados et adultes.
+Application web React mobile-first, 6 écrans, modes **enfant** et **adulte**.
 
-### 4 niveaux de réponse
+### Pipeline clinique en 4 étapes
 
-| Niveau | Déclencheur | Réponse |
-|--------|-------------|---------|
-| 🔵 CRITIQUE | Mots-clés idéation suicidaire (détectés avant tout scoring) | 3114 + SAMU immédiatement |
-| 🔴 ROUGE | Score ≥ 0.65 | Empathie + orientation professionnelle |
-| 🟡 JAUNE | 0.35 ≤ score < 0.65 | Question de suivi + tips |
-| 🟢 VERT | Score < 0.35 | Encouragement + tip du jour |
+| Étape | Écran | Mécanisme |
+|-------|-------|-----------|
+| 1 — Valorisation émotion | EmotionSelection | 8 émotions × plancher de sécurité clinique |
+| 2 — Analyse ML du texte | Expression | POST /predict → TF-IDF+LR (prod) / DistilBERT (local) |
+| 3 — Détection aberrations | Support | masking (émotion positive + ML score élevé) + keywords critiques |
+| 4 — Solutions personnalisées | Solutions | Stepped-care NICE : triage 0-4 → micro-actions CBT/mindfulness |
 
-### Structure clinique (5 axes)
+### Score fusionné
 
-Inspiré de PHQ-9, GAD-7, MBI (Maslach Burnout Inventory) :
+```
+finalScore = min(1.0, max(mlScore + maskingBonus, emotionFloor))
+```
 
-- **AXE 1 — Affect** : tristesse, anxiété, irritabilité, vide
-- **AXE 2 — Cognitions** : inutilité, culpabilité, désespoir, catastrophisme
-- **AXE 3 — Somatique** : sommeil, fatigue, tension, respiration
-- **AXE 4 — Comportement** : retrait social, évitement, perte d'activité
-- **AXE 5 — Risque** : idéation suicidaire (CRITIQUE)
+- **emotionFloor** : plancher par émotion (sadness/fear : 0.35 · anger/stress : 0.25 · joy/calm/pride : 0.0)
+- **masking** : émotion positive + mlScore > 0.25 → bonus +0.20
+- **keywords critiques** : idéation suicidaire → niveau 4 (URGENCE), indépendamment du ML
 
-### Sécurité
+### Niveaux de triage (stepped-care NICE)
 
-- Détection CRITIQUE **avant** tout scoring ML (indépendant du modèle NLP)
-- Règle de sécurité emoji : le choix de l'utilisateur ne peut pas être contredit par le NLP
-- Boost d'intensité +0.15 si modificateurs fréquence détectés ("tout le temps", "depuis des semaines"...)
-- Ressources : 3114 (24h/7j), Mon Soutien Psy (12 séances remboursées), Fil Santé Jeunes
+| Niveau | Score | Réponse |
+|--------|-------|---------|
+| 0 — Bien-être | < 0.20 | Mindfulness, ancrage |
+| 1 — Léger | 0.20–0.35 | CBT activation comportementale |
+| 2 — Modéré | 0.35–0.55 | CBT restructuration cognitive |
+| 3 — Élevé | 0.55–0.75 | Orientation professionnelle + 3114 |
+| 4 — Urgent | ≥ 0.75 ou keywords | 3114 + SAMU — ressources urgentes en tête |
+
+### Indicateur discret (mode adulte, niveaux 1-3)
+
+Panneau "Analyse" sur l'écran Solutions : points de triage, barre de score %, dimensions cliniques détectées (Épuisement / Anxiété / Humeur dépressive / Dysrégulation). Masqué en mode enfant et niveau 4.
+
+### Sécurité applicative
+
+- Détection keywords critiques **avant** tout scoring ML
+- Whitelist `VALID_EMOTIONS` et `VALID_EMOTION_COLORS` (anti-injection router state)
+- AbortController + isMountedRef (fetch React, no memory leak)
+- Moteur local `solutionEngine.ts` : Solutions s'affiche instantanément (pas de flash)
+- Appel `POST /solutions` en background → mise à jour silencieuse (fondation LLM futur)
 
 ### Support multilingue
 
 - Détection automatique FR/EN via `langdetect` (seed fixé pour déterminisme)
 - Traduction FR→EN via `deep-translator` avant analyse NLP
-- Seed fixé : `DetectorFactory.seed = 0`
 
 ---
 
