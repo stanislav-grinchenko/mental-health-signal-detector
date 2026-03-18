@@ -4,3 +4,4 @@ scikit-image
 pandas
 nltk
 scikit-learn
+xgboost
