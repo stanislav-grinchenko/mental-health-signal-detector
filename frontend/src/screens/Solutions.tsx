@@ -167,6 +167,11 @@ export default function Solutions() {
   const abortRef = useRef<AbortController | null>(null);
   const isMountedRef = useRef(true);
 
+  // Quick actions state
+  const [activeQuick, setActiveQuick] = useState<string | null>(null);
+  const [journalText, setJournalText] = useState("");
+  const [breathPhase, setBreathPhase] = useState<"inhale" | "exhale">("inhale");
+
   // Guard : accès direct sans flow → redirection
   useEffect(() => {
     if (!diagnosticProfile) navigate("/", { replace: true });
@@ -212,6 +217,26 @@ export default function Solutions() {
         // Le moteur local est déjà affiché — rien à faire
       });
   }, [diagnosticProfile]);
+
+  // Breathing timer — actif uniquement quand le panneau respiration est ouvert
+  useEffect(() => {
+    if (activeQuick !== "breath") return;
+    setBreathPhase("inhale");
+    const id = setInterval(() => setBreathPhase((p) => (p === "inhale" ? "exhale" : "inhale")), 5000);
+    return () => clearInterval(id);
+  }, [activeQuick]);
+
+  const handleQuickAction = (key: string) => {
+    if (key === "talk") {
+      document.getElementById("resources-section")?.scrollIntoView({ behavior: "smooth" });
+      return;
+    }
+    if (key === "later") {
+      navigate("/checkin", { state: { mode } });
+      return;
+    }
+    setActiveQuick((prev) => (prev === key ? null : key));
+  };
 
   if (!diagnosticProfile || !solution) return null;
 
@@ -424,7 +449,7 @@ export default function Solutions() {
 
         {/* Ressources non-urgentes */}
         {solution.resources.filter((r) => !r.urgent).length > 0 && (
-          <div className="space-y-2">
+          <div id="resources-section" className="space-y-2">
             <motion.p
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -439,33 +464,96 @@ export default function Solutions() {
           </div>
         )}
 
-        {/* Et maintenant ? — bloc 4 options */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.65 }}
-          className="space-y-2"
-        >
-          <p className="text-sm font-medium text-gray-600 px-1">
-            {mode === "kids" ? "Et maintenant, qu'est-ce qui t'aiderait le plus ?" : "Et maintenant, qu'est-ce qui vous aiderait le plus ?"}
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              { Icon: BreathIcon,      label: mode === "kids" ? "Respirer 2 min"        : "Respirer 2 minutes" },
-              { Icon: PenLine,         label: mode === "kids" ? "Écrire ce que je ressens" : "Écrire ce que je ressens" },
-              { Icon: MessageCircle,   label: mode === "kids" ? "Parler à quelqu'un"    : "Parler à quelqu'un" },
-              { Icon: RotateCcw,       label: mode === "kids" ? "Refaire un point plus tard" : "Refaire un point plus tard" },
-            ].map(({ Icon, label }) => (
-              <div
-                key={label}
-                className="bg-white/70 backdrop-blur-sm rounded-2xl p-3 flex items-center gap-2 shadow-sm"
-              >
-                <Icon className="w-4 h-4 text-teal-500 flex-shrink-0" />
-                <span className="text-xs text-gray-600 leading-tight">{label}</span>
-              </div>
-            ))}
-          </div>
-        </motion.div>
+        {/* Et maintenant ? — 4 actions interactives (masqué niveau 4) */}
+        {solution.level < 4 && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.65 }}
+            className="space-y-3"
+          >
+            <p className="text-sm font-medium text-gray-600 px-1">
+              {mode === "kids" ? "Et maintenant, qu'est-ce qui t'aiderait le plus ?" : "Et maintenant, qu'est-ce qui vous aiderait le plus ?"}
+            </p>
+
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { key: "breath", Icon: BreathIcon,    label: mode === "kids" ? "Respirer 2 min"           : "Respirer 2 minutes" },
+                { key: "write",  Icon: PenLine,        label: mode === "kids" ? "Écrire ce que je ressens" : "Écrire ce que je ressens" },
+                { key: "talk",   Icon: MessageCircle,  label: mode === "kids" ? "Parler à quelqu'un"       : "Parler à quelqu'un" },
+                { key: "later",  Icon: RotateCcw,      label: mode === "kids" ? "Refaire un point plus tard" : "Refaire un point plus tard" },
+              ].map(({ key, Icon, label }) => (
+                <button
+                  key={key}
+                  onClick={() => handleQuickAction(key)}
+                  className={`bg-white/70 backdrop-blur-sm rounded-2xl p-3 flex items-center gap-2 shadow-sm text-left transition-all hover:bg-white/90 ${
+                    activeQuick === key ? "ring-2 ring-teal-300 bg-white/90" : ""
+                  }`}
+                >
+                  <Icon className="w-4 h-4 text-teal-500 flex-shrink-0" />
+                  <span className="text-xs text-gray-600 leading-tight">{label}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Contenu expansible */}
+            <AnimatePresence>
+              {activeQuick === "breath" && (
+                <motion.div
+                  key="breath-panel"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="overflow-hidden"
+                >
+                  <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-5 flex flex-col items-center gap-4">
+                    <p className="text-xs text-gray-500 text-center">
+                      {mode === "kids" ? "Suis le cercle avec ta respiration" : "Suivez le cercle avec votre respiration"}
+                    </p>
+                    <motion.div
+                      animate={{ scale: breathPhase === "inhale" ? 1.5 : 1, opacity: breathPhase === "inhale" ? 1 : 0.55 }}
+                      transition={{ duration: 5, ease: "easeInOut" }}
+                      className="w-20 h-20 rounded-full bg-gradient-to-br from-teal-300 to-cyan-400 shadow-lg"
+                    />
+                    <p className="text-sm font-medium text-teal-600">
+                      {breathPhase === "inhale" ? "Inspirez..." : "Expirez..."}
+                    </p>
+                    <p className="text-xs text-gray-400">5 secondes · répétez 3 minutes</p>
+                  </div>
+                </motion.div>
+              )}
+
+              {activeQuick === "write" && (
+                <motion.div
+                  key="write-panel"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="overflow-hidden"
+                >
+                  <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 space-y-3">
+                    <p className="text-xs text-gray-500 italic">
+                      {mode === "kids"
+                        ? "En quelques mots, qu'est-ce qui pèse en ce moment ?"
+                        : "En quelques mots, qu'est-ce qui pèse en ce moment ?"}
+                    </p>
+                    <textarea
+                      value={journalText}
+                      onChange={(e) => setJournalText(e.target.value)}
+                      placeholder={mode === "kids" ? "Écris ici, juste pour toi..." : "Écrivez ici, pour vous seulement..."}
+                      className="w-full min-h-[80px] bg-gray-50 rounded-xl p-3 text-sm text-gray-700 resize-none focus:outline-none focus:ring-2 focus:ring-teal-200 placeholder:text-gray-400"
+                    />
+                    <p className="text-xs text-gray-400 text-right">
+                      🔒 {mode === "kids" ? "Ces mots restent sur ton appareil" : "Ce texte reste sur votre appareil"}
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        )}
 
         {/* Clôture */}
         <motion.div
