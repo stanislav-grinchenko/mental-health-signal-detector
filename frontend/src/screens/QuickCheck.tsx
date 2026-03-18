@@ -96,6 +96,33 @@ const EMOTION_ACCENT: Record<string, string> = {
   tiredness: "from-slate-300 to-slate-400",
 };
 
+// ─── Message de transition (validation de l'émotion) ─────────────────────────
+
+type ModeMessages = { kids: string; adult: string };
+
+const BRIDGE_MESSAGES: Record<string, ModeMessages> = {
+  sadness:   {
+    kids:  "C'est courageux de le dire. On va juste explorer ça ensemble, doucement.",
+    adult: "Merci de l'exprimer. Quelques questions rapides pour mieux comprendre ce que vous traversez.",
+  },
+  fear:      {
+    kids:  "C'est bien de nommer ce que tu ressens. Je suis là avec toi.",
+    adult: "Mettre des mots sur ses peurs, c'est déjà un premier pas. Allons-y ensemble.",
+  },
+  stress:    {
+    kids:  "Je comprends que tu te sentes nerveux. On va voir ça ensemble.",
+    adult: "Vous avez raison d'en parler. Prenons un moment pour y voir plus clair.",
+  },
+  anger:     {
+    kids:  "C'est ok d'être fâché. Tes émotions sont importantes.",
+    adult: "La colère mérite d'être entendue. Quelques questions pour mieux comprendre.",
+  },
+  tiredness: {
+    kids:  "Ton corps te dit quelque chose d'important. On va l'écouter ensemble.",
+    adult: "Votre corps vous envoie un signal. Prenons le temps de l'explorer.",
+  },
+};
+
 // ─── Composant principal ──────────────────────────────────────────────────────
 
 export default function QuickCheck() {
@@ -111,6 +138,7 @@ export default function QuickCheck() {
   const emotionIds: string[] = Array.isArray(location.state?.emotionIds) ? location.state.emotionIds : [];
   const emotionLabels: string[] = Array.isArray(location.state?.emotionLabels) ? location.state.emotionLabels : [];
 
+  const [phase, setPhase] = useState<"bridge" | "questions">("bridge");
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<number[]>([]);
   const [direction, setDirection] = useState(1); // 1 = forward
@@ -166,10 +194,15 @@ export default function QuickCheck() {
 
   const handleSkip = () => goToExpression([]);
 
+  const bridgeMessage = BRIDGE_MESSAGES[emotionId]?.[mode]
+    ?? (mode === "kids"
+      ? "Je t'écoute. Quelques petites questions pour mieux t'aider."
+      : "Merci de partager cela. Quelques questions pour mieux comprendre.");
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-sky-50 via-teal-50 to-slate-50 flex flex-col">
 
-      {/* Header */}
+      {/* Header commun */}
       <div className="px-6 pt-12 pb-2">
         <button
           onClick={() => navigate(-1)}
@@ -178,19 +211,21 @@ export default function QuickCheck() {
           ← Retour
         </button>
 
-        {/* Barre de progression */}
-        <div className="flex gap-1.5 mb-6">
-          {questions.map((_, i) => (
-            <div
-              key={i}
-              className={`h-1 flex-1 rounded-full transition-all duration-300 ${
-                i < currentIndex ? `bg-gradient-to-r ${accent}` :
-                i === currentIndex ? `bg-gradient-to-r ${accent} opacity-60` :
-                "bg-gray-200"
-              }`}
-            />
-          ))}
-        </div>
+        {/* Barre de progression — masquée sur le bridge */}
+        {phase === "questions" && (
+          <div className="flex gap-1.5 mb-6">
+            {questions.map((_, i) => (
+              <div
+                key={i}
+                className={`h-1 flex-1 rounded-full transition-all duration-300 ${
+                  i < currentIndex ? `bg-gradient-to-r ${accent}` :
+                  i === currentIndex ? `bg-gradient-to-r ${accent} opacity-60` :
+                  "bg-gray-200"
+                }`}
+              />
+            ))}
+          </div>
+        )}
 
         {/* Émotion(s) sélectionnée(s) */}
         <div className="flex items-center gap-2 mb-6 flex-wrap">
@@ -208,56 +243,103 @@ export default function QuickCheck() {
         </div>
       </div>
 
-      {/* Question */}
       <div className="flex-1 px-6 flex flex-col justify-between pb-10">
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={currentIndex}
-            initial={{ opacity: 0, x: direction * 32 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -direction * 32 }}
-            transition={{ duration: 0.22 }}
-            className="space-y-4"
-          >
-            {/* Numéro */}
-            <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">
-              Question {currentIndex + 1} / {total}
-            </p>
+        <AnimatePresence mode="wait">
 
-            {/* Texte de la question */}
-            <h2 className="text-xl font-medium leading-snug" style={{ color: "#2A5F7D" }}>
-              {mode === "kids" ? question.kids : question.adult}
-            </h2>
+          {/* ── Phase bridge — validation de l'émotion ── */}
+          {phase === "bridge" && (
+            <motion.div
+              key="bridge"
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -16 }}
+              transition={{ duration: 0.28 }}
+              className="flex flex-col gap-6"
+            >
+              {/* Carte d'accueil */}
+              <div className={`bg-gradient-to-br ${accent} rounded-3xl p-6 shadow-lg text-white`}>
+                <p className="text-lg font-medium leading-relaxed">
+                  {bridgeMessage}
+                </p>
+                <p className="text-white/75 text-sm mt-3">
+                  {mode === "kids"
+                    ? `${total} petites questions — tu peux passer si tu préfères.`
+                    : `${total} questions rapides — vous pouvez passer si vous préférez.`}
+                </p>
+              </div>
 
-            {/* Options */}
-            <div className="space-y-2 pt-2">
-              {question.options.map((opt) => (
-                <motion.button
-                  key={opt.value}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => handleAnswer(opt.value)}
-                  className="w-full text-left bg-white/80 backdrop-blur-sm rounded-2xl px-5 py-4 shadow-sm border border-white hover:shadow-md hover:border-teal-200 transition-all flex items-center justify-between group"
-                >
-                  <span className="text-gray-700 text-sm font-medium">
-                    {mode === "kids" ? opt.kids : opt.adult}
-                  </span>
-                  <div className={`w-4 h-4 rounded-full border-2 border-gray-300 group-hover:border-teal-400 group-hover:bg-teal-400 transition-all flex-shrink-0`} />
-                </motion.button>
-              ))}
-            </div>
-          </motion.div>
+              {/* Bouton principal */}
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                onClick={() => setPhase("questions")}
+                className="w-full bg-gradient-to-r from-teal-400 via-cyan-400 to-blue-400 text-white rounded-2xl py-4 shadow-md font-medium text-base"
+              >
+                {mode === "kids" ? "C'est parti →" : "Commencer →"}
+              </motion.button>
+
+              {/* Passer */}
+              <button
+                onClick={handleSkip}
+                className="text-gray-400 text-sm hover:text-gray-600 transition-colors text-center"
+              >
+                {mode === "kids" ? "Passer cette étape" : "Passer cette étape"}
+              </button>
+            </motion.div>
+          )}
+
+          {/* ── Phase questions ── */}
+          {phase === "questions" && (
+            <motion.div
+              key={currentIndex}
+              initial={{ opacity: 0, x: direction * 32 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -direction * 32 }}
+              transition={{ duration: 0.22 }}
+              className="space-y-4"
+            >
+              {/* Numéro */}
+              <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                Question {currentIndex + 1} / {total}
+              </p>
+
+              {/* Texte de la question */}
+              <h2 className="text-xl font-medium leading-snug" style={{ color: "#2A5F7D" }}>
+                {mode === "kids" ? question.kids : question.adult}
+              </h2>
+
+              {/* Options */}
+              <div className="space-y-2 pt-2">
+                {question.options.map((opt) => (
+                  <motion.button
+                    key={opt.value}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => handleAnswer(opt.value)}
+                    className="w-full text-left bg-white/80 backdrop-blur-sm rounded-2xl px-5 py-4 shadow-sm border border-white hover:shadow-md hover:border-teal-200 transition-all flex items-center justify-between group"
+                  >
+                    <span className="text-gray-700 text-sm font-medium">
+                      {mode === "kids" ? opt.kids : opt.adult}
+                    </span>
+                    <div className="w-4 h-4 rounded-full border-2 border-gray-300 group-hover:border-teal-400 group-hover:bg-teal-400 transition-all flex-shrink-0" />
+                  </motion.button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
         </AnimatePresence>
 
-        {/* Passer */}
-        <motion.button
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
-          onClick={handleSkip}
-          className="text-gray-400 text-sm hover:text-gray-600 transition-colors text-center pt-6"
-        >
-          {mode === "kids" ? "Passer cette étape" : "Passer cette étape"}
-        </motion.button>
+        {/* Passer — phase questions uniquement */}
+        {phase === "questions" && (
+          <motion.button
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.4 }}
+            onClick={handleSkip}
+            className="text-gray-400 text-sm hover:text-gray-600 transition-colors text-center pt-6"
+          >
+            {mode === "kids" ? "Passer cette étape" : "Passer cette étape"}
+          </motion.button>
+        )}
       </div>
     </div>
   );
