@@ -8,16 +8,22 @@ import src.data_cleaning.data as data
 import src.training.preprocess as preprocess
 
 
-def load_and_prepare_data() -> tuple:
+def load_and_prepare_data(load_data_fn=None, clean_data_fn=None, preprocess_fn=None) -> tuple:
     """
-    Load the dataset, clean it, preprocess the text,
+    Load the dataset, preprocess the text,
     and split it into train, validation, and test sets.
-     - The dataset is loaded using the `load_data` function from the `data` module.
-     - The dataset is cleaned using the `clean_data` function from the `data` module
+    Optional callables allow lightweight tests without monkeypatching.
     """
-    df = data.load_data()
-    df_cleaned = data.clean_data(df)
-    df_cleaned["title"] = df_cleaned["title"].apply(preprocess.preprocess_text)
+    if load_data_fn is None:
+        load_data_fn = data.load_data
+    if clean_data_fn is None:
+        clean_data_fn = data.clean_data
+    if preprocess_fn is None:
+        preprocess_fn = preprocess.preprocess_text
+
+    df = load_data_fn()
+    df_cleaned = clean_data_fn(df)
+    df_cleaned["title"] = df_cleaned["title"].apply(preprocess_fn)
     X = df_cleaned["title"]
     y = df_cleaned["label"]
     X_train, X_test_val, y_train, y_test_val = train_test_split(X, y, test_size=0.30, random_state=42, stratify=y)
@@ -39,16 +45,20 @@ def train_model(X_train, y_train) -> tuple:
     return vectorizer, model
 
 
-def save_artifacts(vectorizer, model):
+def save_artifacts(vectorizer, model, models_dir=None, vectorizer_path=None, model_path=None):
     """Save the trained model and vectorizer to disk using joblib.
-    - The artifacts are saved in the directory specified by `config.MODELS_DIR`
-    - The vectorizer is saved as `tidifvectorizer.pkl`
-    and the model as `lrmodel.pkl`"""
-    path = config.MODELS_DIR
-    path.mkdir(parents=True, exist_ok=True)
+    Optional paths make the function easy to test without monkeypatching."""
+    if models_dir is None:
+        models_dir = config.MODELS_DIR
+    if vectorizer_path is None:
+        vectorizer_path = config.VECTORIZER_PATH
+    if model_path is None:
+        model_path = config.LR_MODEL_PATH
 
-    joblib.dump(vectorizer, config.VECTORIZER_PATH)
-    joblib.dump(model, config.LR_MODEL_PATH)
+    models_dir.mkdir(parents=True, exist_ok=True)
+
+    joblib.dump(vectorizer, vectorizer_path)
+    joblib.dump(model, model_path)
 
 
 if __name__ == "__main__":

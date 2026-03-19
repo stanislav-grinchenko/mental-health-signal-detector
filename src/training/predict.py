@@ -4,26 +4,20 @@ from transformers import AutoTokenizer
 from src.training.preprocess import preprocess_text
 
 
-def lr_predict(model, vectorizer, text: str) -> dict:
-    """Predict the probability of a mental health signal in the given text using a trained logistic regression model.
-    - The function loads the trained model and vectorizer from disk,
-    preprocesses the input text, and returns a dictionary containing the predicted probability of a mental health signal."""
-
-    preprocessed_text = preprocess_text(text)
+def lr_predict(model, vectorizer, text: str, preprocess_fn=preprocess_text) -> dict:
+    """Predict class label/probability with a trained logistic regression pipeline."""
+    preprocessed_text = preprocess_fn(text)
     features = vectorizer.transform([preprocessed_text])
     probability = model.predict_proba(features)[0][1]
     return {"label": int(probability >= 0.5), "probability": probability}
 
 
-def distilbert_predict(model, text: str) -> dict:
-    """Predict the probability of a mental health signal in the given text using
-        a trained DistilBERT model.
-    - The function loads the trained DistilBERT model and tokenizer from disk,
-    preprocesses the input text, and returns a dictionary containing the predicted
-    probability of a mental health signal."""
-    # Placeholder implementation - replace with actual DistilBERT prediction logic
-    preprocessed_text = preprocess_text(text, model_type="distilbert")
-    tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased")
+def distilbert_predict(model, text: str, tokenizer=None, preprocess_fn=preprocess_text) -> dict:
+    """Predict class label/probability with a trained DistilBERT classifier."""
+    preprocessed_text = preprocess_fn(text)
+    if tokenizer is None:
+        tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased")
+
     inputs = tokenizer(
         preprocessed_text,
         return_tensors="pt",
