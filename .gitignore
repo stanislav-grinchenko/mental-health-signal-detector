@@ -107,3 +107,5 @@ docker/.env
 # Ignore temporary files
 .tmp/
 .temp/
+
+.python-version
