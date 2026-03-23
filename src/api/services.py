@@ -232,10 +232,7 @@ def _xgboost_word_importance(text: str) -> dict[str, float]:
     if feature_importances is None:
         return {}
 
-    return {
-        feature_names[idx]: float(value * feature_importances[idx])
-        for idx, value in zip(features.indices, features.data)
-    }
+    return {feature_names[idx]: float(value * feature_importances[idx]) for idx, value in zip(features.indices, features.data)}
 
 
 def _color_text_distilbert(

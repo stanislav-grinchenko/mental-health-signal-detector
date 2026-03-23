@@ -141,9 +141,7 @@ def render_word_importance_page(api_url: str) -> None:
     text_input = st.text_area("Sentence", height=180, key="explain_sentence")
     st.markdown('<p class="section-title">Model selection</p>', unsafe_allow_html=True)
     model_type = st.selectbox("Explain with model", ["lr", "xgboost", "distilbert", "mentalbert"], key="explain_model")
-    st.caption(
-        "LR and XGBoost use tfidf-based word scoring. DistilBERT and MentalBERT use gradient-based token attributions."
-    )
+    st.caption("LR and XGBoost use tfidf-based word scoring. DistilBERT and MentalBERT use gradient-based token attributions.")
     st.markdown('<p class="section-title">Sensitivity</p>', unsafe_allow_html=True)
     threshold = st.slider(
         "Word importance threshold",

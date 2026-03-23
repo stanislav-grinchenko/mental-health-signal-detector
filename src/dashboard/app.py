@@ -194,7 +194,7 @@ def _resolve_api_url() -> str:
         if _is_api_reachable(url):
             return url
 
-    return API_URL_LOCAL # On laisse comme ça pour l'instant
+    return API_URL_LOCAL  # On laisse comme ça pour l'instant
 
 
 def main() -> None:
