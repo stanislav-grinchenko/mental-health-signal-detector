@@ -194,7 +194,7 @@ def _resolve_api_url() -> str:
         if _is_api_reachable(url):
             return url
 
-    return API_URL_LOCAL
+    return API_URL_LOCAL # On laisse comme ça pour l'instant
 
 
 def main() -> None:
@@ -210,7 +210,7 @@ def main() -> None:
     _inject_theme()
     _render_shell()
 
-    api_url = _resolve_api_url()
+    api_url = API_URL_LOCAL
 
     st.sidebar.markdown(
         '<h2 style="margin:0; line-height:1.05; color:#eaf5ff;">Mental Health<br/>Signal Detector</h2>',

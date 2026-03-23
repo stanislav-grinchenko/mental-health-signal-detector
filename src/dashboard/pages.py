@@ -1,5 +1,47 @@
+import importlib
+
 import requests
 import streamlit as st
+
+GoogleTranslator = None
+
+
+def _get_google_translator():
+    """Return GoogleTranslator class if deep_translator is installed, else None."""
+    global GoogleTranslator
+    if GoogleTranslator is not None:
+        return GoogleTranslator
+
+    try:
+        deep_translator_module = importlib.import_module("deep_translator")
+        GoogleTranslator = deep_translator_module.GoogleTranslator
+        return GoogleTranslator
+    except ImportError:
+        return None
+
+
+def _translate_to_english(text: str) -> tuple[str, str | None]:
+    """Translate text to English when possible, returning translated text and optional note."""
+    cleaned = text.strip()
+    if not cleaned:
+        return text, None
+
+    translator_cls = _get_google_translator()
+    if translator_cls is None:
+        return text, "Translator unavailable (`deep-translator` not installed). Original text was used."
+
+    try:
+        translated = translator_cls(source="auto", target="en").translate(cleaned)
+    except Exception:
+        return text, "Automatic translation failed. Original text was used."
+
+    if not translated:
+        return text, "Automatic translation returned empty output. Original text was used."
+
+    if translated.strip().lower() != cleaned.lower():
+        return translated, "Input was auto-translated to English before analysis."
+
+    return text, None
 
 
 def _render_hero(mode: str) -> None:
@@ -45,18 +87,22 @@ def render_prediction_page(api_url: str) -> None:
 
     text_input = st.text_area("Input Text", height=200, key="predict_text")
     st.markdown('<p class="section-title">Model selection</p>', unsafe_allow_html=True)
-    model_type = st.selectbox("Select Model", ["lr", "distilbert"], key="predict_model")
+    model_type = st.selectbox("Select Model", ["lr", "xgboost", "distilbert", "mentalbert"], key="predict_model")
 
     if st.button("Predict", key="predict_button"):
         if not text_input.strip():
             st.warning("Please enter some text to analyze.")
             return
 
+        text_for_model, translation_note = _translate_to_english(text_input)
+        if translation_note:
+            st.info(translation_note)
+
         with st.spinner("Analyzing... (first request may take up to 30s to wake the server)"):
             try:
                 response = requests.post(
                     f"{api_url}/predict",
-                    json={"text": text_input, "model_type": model_type},
+                    json={"text": text_for_model, "model_type": model_type},
                     timeout=60,
                 )
                 response.raise_for_status()
@@ -94,8 +140,10 @@ def render_word_importance_page(api_url: str) -> None:
 
     text_input = st.text_area("Sentence", height=180, key="explain_sentence")
     st.markdown('<p class="section-title">Model selection</p>', unsafe_allow_html=True)
-    model_type = st.selectbox("Explain with model", ["lr", "distilbert"], key="explain_model")
-    st.caption("Choose LR for sparse token contributions or DistilBERT for gradient-based token attributions.")
+    model_type = st.selectbox("Explain with model", ["lr", "xgboost", "distilbert", "mentalbert"], key="explain_model")
+    st.caption(
+        "LR and XGBoost use tfidf-based word scoring. DistilBERT and MentalBERT use gradient-based token attributions."
+    )
     st.markdown('<p class="section-title">Sensitivity</p>', unsafe_allow_html=True)
     threshold = st.slider(
         "Word importance threshold",
@@ -112,8 +160,12 @@ def render_word_importance_page(api_url: str) -> None:
             st.warning("Please enter a sentence to analyze.")
             return
 
+        text_for_model, translation_note = _translate_to_english(text_input)
+        if translation_note:
+            st.info(translation_note)
+
         payload = {
-            "text": text_input,
+            "text": text_for_model,
             "model_type": model_type,
             "threshold": threshold,
             "max_tokens": max_tokens,
