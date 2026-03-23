@@ -7,7 +7,7 @@ class PredictionRequest(BaseModel):
     """Request model for prediction endpoint."""
 
     text: str
-    model_type: Literal["lr", "distilbert"] = "lr"
+    model_type: Literal["lr", "distilbert", "xgboost"] = "lr"
 
 
 class PredictionResponse(BaseModel):
