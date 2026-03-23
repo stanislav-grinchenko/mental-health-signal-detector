@@ -3,6 +3,7 @@ import pickle
 
 import joblib
 import torch
+from transformers import AutoModelForSequenceClassification
 
 import src.common.config as config
 import src.training.predict as predictor
@@ -10,6 +11,7 @@ import src.training.predict as predictor
 _lr_model = joblib.load(config.LR_MODEL_PATH)
 _lr_vectorizer = joblib.load(config.VECTORIZER_PATH)
 _distilbert_model = None  # Lazy load the DistilBERT model when needed
+_mental_roberta_model = None  # Lazy load the Mental Roberta model when needed
 
 
 class CPUUnpickler(pickle.Unpickler):
@@ -31,6 +33,15 @@ def _get_distilbert_model():
     return _distilbert_model
 
 
+def _get_mental_roberta_model():
+    """Load the MentalRoBERTa model from the HuggingFace directory if not already loaded."""
+    global _mental_roberta_model
+    if _mental_roberta_model is None:
+        _mental_roberta_model = AutoModelForSequenceClassification.from_pretrained(config.MENTAL_ROBERTA_HF_PATH)
+        _mental_roberta_model.eval()
+    return _mental_roberta_model
+
+
 def predict(text: str, model_type: str = "lr") -> dict:
     """Predict the probability of a mental health signal
     in the given text using the specified model type."""
@@ -38,3 +49,5 @@ def predict(text: str, model_type: str = "lr") -> dict:
         return predictor.lr_predict(_lr_model, _lr_vectorizer, text)
     elif model_type == "distilbert":
         return predictor.distilbert_predict(_get_distilbert_model(), text)
+    elif model_type == "mental_roberta":
+        return predictor.mental_roberta_predict(_get_mental_roberta_model(), text)

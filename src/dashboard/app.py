@@ -9,7 +9,7 @@ API_URL = os.getenv("API_URL", "http://localhost:8000")
 st.title("Mental Health Signal Detector")
 st.write("Enter text to analyze for mental health signals.")
 text_input = st.text_area("Input Text", height=200)
-model_type = st.selectbox("Select Model", ["lr", "distilbert"])
+model_type = st.selectbox("Select Model", ["lr", "distilbert", "mental_roberta"], index=0, help="Choose the model to use for prediction.")
 if st.button("Predict"):
     if not text_input.strip():
         st.warning("Please enter some text to analyze.")
