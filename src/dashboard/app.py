@@ -60,15 +60,14 @@ def _inject_theme() -> None:
             }
 
             .hero-banner {
-                background: linear-gradient(90deg, #0aaac9 0%, #16c3df 70%, #2acfea 100%);
-                color: #05233e;
-                letter-spacing: 0.05em;
+                background: transparent;
+                color: var(--cyan-500);
+                letter-spacing: 0.1em;
                 text-transform: uppercase;
-                font-weight: 800;
-                font-size: 0.75rem;
-                padding: 0.55rem 0.9rem;
-                border-radius: 0.15rem;
-                box-shadow: 0 6px 10px rgba(0, 0, 0, 0.25);
+                font-weight: 700;
+                font-size: 0.72rem;
+                padding: 0.4rem 0;
+                border-bottom: 1px solid rgba(66, 216, 240, 0.25);
                 margin-bottom: 1rem;
             }
 
@@ -101,12 +100,14 @@ def _inject_theme() -> None:
             }
 
             .chip {
-                background: linear-gradient(90deg, #00a8c7, #10c5e2);
-                color: #06324b;
-                font-weight: 800;
-                padding: 0.42rem 0.8rem;
-                border-radius: 0.2rem;
-                box-shadow: 0 5px 10px rgba(0, 0, 0, 0.28);
+                background: rgba(14, 199, 230, 0.08);
+                color: var(--cyan-400);
+                font-weight: 700;
+                padding: 0.38rem 0.8rem;
+                border-radius: 0.25rem;
+                border: 1px solid rgba(66, 216, 240, 0.35);
+                font-size: 0.82rem;
+                letter-spacing: 0.02em;
             }
 
             .section-title {
@@ -171,53 +172,39 @@ def _inject_theme() -> None:
                 padding: 0.6rem 1.1rem 0.3rem;
             }
 
-            /* ── Hide the "Go to" radio widget label ── */
-            div[data-testid="stSidebar"] [data-testid="stRadio"] > [data-testid="stWidgetLabel"] {
-                display: none !important;
-            }
-
-            /* ── Radio group: nav item list ── */
-            div[data-testid="stSidebar"] [role="radiogroup"] {
-                display: flex;
-                flex-direction: column;
-                gap: 0.15rem;
-                padding: 0 0.55rem;
-            }
-            div[data-testid="stSidebar"] [role="radiogroup"] label {
-                display: flex !important;
-                align-items: center;
-                gap: 0.55rem;
-                padding: 0.6rem 0.85rem !important;
-                border-radius: 0.4rem;
-                border-left: 3px solid transparent;
-                cursor: pointer;
-                transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-                color: var(--ink-200) !important;
-                font-size: 0.9rem;
-                font-weight: 600;
+            /* ── Sidebar nav buttons styled as links ── */
+            div[data-testid="stSidebar"] .stButton > button {
                 background: transparent !important;
-                min-height: unset !important;
+                color: var(--ink-200) !important;
+                border: none !important;
+                border-left: 3px solid transparent !important;
+                border-radius: 0.4rem !important;
+                font-weight: 600 !important;
+                font-size: 0.9rem !important;
+                text-align: left !important;
+                justify-content: flex-start !important;
+                padding: 0.6rem 0.85rem !important;
+                box-shadow: none !important;
+                text-transform: none !important;
+                letter-spacing: normal !important;
             }
-            div[data-testid="stSidebar"] [role="radiogroup"] label:hover {
+            div[data-testid="stSidebar"] .stButton > button:hover {
                 background: rgba(14, 199, 230, 0.08) !important;
                 border-left-color: rgba(66, 216, 240, 0.45) !important;
                 color: var(--ink-100) !important;
+                transform: none !important;
+                filter: none !important;
             }
-            div[data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked) {
+            /* Active nav item uses type="primary" */
+            div[data-testid="stSidebar"] button[data-testid="baseButton-primary"] {
                 background: rgba(14, 199, 230, 0.13) !important;
                 border-left-color: var(--cyan-500) !important;
                 color: #ffffff !important;
             }
-            /* Hide native radio input AND BaseWeb's custom circle indicator */
-            div[data-testid="stSidebar"] [role="radiogroup"] input[type="radio"],
-            div[data-testid="stSidebar"] [data-baseweb="radio"],
-            div[data-testid="stSidebar"] [role="radiogroup"] [data-testid="stMarkdownContainer"] ~ div {
-                display: none !important;
-            }
-            /* Remove default Streamlit focus ring on radio */
-            div[data-testid="stSidebar"] [role="radiogroup"] label:focus-within {
-                outline: none !important;
-                box-shadow: none !important;
+            div[data-testid="stSidebar"] button[data-testid="baseButton-primary"]:hover {
+                background: rgba(14, 199, 230, 0.18) !important;
+                transform: none !important;
+                filter: none !important;
             }
 
             /* ── Sidebar footer card (API status) ── */
@@ -327,7 +314,6 @@ def _inject_theme() -> None:
             }
 
             /* ── Sidebar text (captions, small text) ── */
-            div[data-testid="stSidebar"] .stRadio span,
             div[data-testid="stSidebar"] small {
                 color: var(--ink-200) !important;
             }
@@ -361,7 +347,7 @@ def _inject_theme() -> None:
                 }
 
                 .hero-banner {
-                    font-size: 0.66rem;
+                    font-size: 0.62rem;
                 }
             }
         </style>
@@ -431,14 +417,23 @@ def main() -> None:
     # ── Navigation ─────────────────────────────────────────────────────────────
     st.sidebar.markdown('<div class="sb-nav-label">Navigate</div>', unsafe_allow_html=True)
 
-    _NAV_OPTIONS = [
-        "🔮  Prediction",
-        "🔍  Word Importance",
-        "📊  Models Board",
-        "📈  Stats",
-        "ℹ️  About the Models",
+    _NAV_ITEMS = [
+        ("prediction", "🔮", "Prediction"),
+        ("word-importance", "🔍", "Word Importance"),
+        ("models-board", "📊", "Models Board"),
+        ("stats", "📈", "Stats"),
+        ("about", "ℹ️", "About the Models"),
     ]
-    selected_page = st.sidebar.radio("Go to", _NAV_OPTIONS, index=0, label_visibility="collapsed")
+
+    if "page" not in st.session_state:
+        st.session_state.page = "prediction"
+    current_page = st.session_state.page
+
+    for key, icon, label in _NAV_ITEMS:
+        btn_type = "primary" if current_page == key else "secondary"
+        if st.sidebar.button(f"{icon}  {label}", key=f"nav_{key}", use_container_width=True, type=btn_type):
+            st.session_state.page = key
+            st.rerun()
 
     # ── API status footer ──────────────────────────────────────────────────────
     st.sidebar.markdown(
@@ -454,16 +449,16 @@ def main() -> None:
         unsafe_allow_html=True,
     )
 
-    if selected_page == "🔮  Prediction":
-        render_prediction_page(api_url)
-    elif selected_page == "🔍  Word Importance":
+    if current_page == "word-importance":
         render_word_importance_page(api_url)
-    elif selected_page == "📈  Stats":
+    elif current_page == "models-board":
+        render_models_board_page(api_url)
+    elif current_page == "stats":
         render_stats_page(api_url)
-    elif selected_page == "ℹ️  About the Models":
+    elif current_page == "about":
         render_about_page()
     else:
-        render_models_board_page(api_url)
+        render_prediction_page(api_url)
 
     st.markdown("</div>", unsafe_allow_html=True)
 

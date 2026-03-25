@@ -204,9 +204,8 @@ def render_prediction_page(api_url: str) -> None:
 def render_word_importance_page(api_url: str) -> None:
     """Render the explainability page backed by the deployed API."""
     _render_hero("explain")
+    render_examples(session_key="explain_sentence")
     st.markdown('<p class="section-title">Explainability sentence</p>', unsafe_allow_html=True)
-
-    _render_demo_sentence_picker(text_key="explain_sentence", key_prefix="explain")
     text_input = st.text_area("Sentence", height=180, key="explain_sentence")
     st.markdown('<p class="section-title">Model selection</p>', unsafe_allow_html=True)
     model_type = st.selectbox("Explain with model", MODEL_OPTIONS, key="explain_model")
@@ -281,9 +280,9 @@ def render_word_importance_page(api_url: str) -> None:
 def render_models_board_page(api_url: str) -> None:
     """Render a single board with predictions from all models."""
     _render_hero("board")
+    render_examples(session_key="board_text")
     st.markdown('<p class="section-title">Input text</p>', unsafe_allow_html=True)
 
-    _render_demo_sentence_picker(text_key="board_text", key_prefix="board")
     text_input = st.text_area("Input Text", height=200, key="board_text")
 
     if st.button("Compare all models", key="board_compare_button"):

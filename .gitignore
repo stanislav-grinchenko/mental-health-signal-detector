@@ -121,4 +121,5 @@ docker/.env
 notebooks/Thomas.ipynb
 predictions.db
 
-scripts/generate_presentation.py
+/scripts/generate_presentation.py
+presentation.pptx

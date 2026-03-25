@@ -30,10 +30,10 @@ _MODELS = [
             "with tuned hyperparameters from grid search."
         ),
         "training_data": "30 K balanced samples",
-        "accuracy": "0.93",
-        "precision": "0.93",
-        "recall": "0.92",
-        "f1": "0.93",
+        "accuracy": "0.91",
+        "precision": "0.73",
+        "recall": "0.87",
+        "f1": "0.80",
         "speed": "< 10 ms",
         "explainability": "Partial (feature importance)",
     },
@@ -66,10 +66,10 @@ _MODELS = [
             "and self-disclosure language — the best precision on the depressed class."
         ),
         "training_data": "21 K samples",
-        "accuracy": "0.95",
-        "precision": "0.84",
-        "recall": "0.94",
-        "f1": "0.89",
+        "accuracy": "0.96",
+        "precision": "0.96",
+        "recall": "0.97",
+        "f1": "0.96",
         "speed": "200–400 ms",
         "explainability": "Gradient × input attribution",
     },
@@ -261,22 +261,16 @@ def render_about_page() -> None:
     df = pd.DataFrame(
         {
             "Model": ["Logistic Regression", "XGBoost", "DistilBERT", "MentalRoBERTa"],
-            "Accuracy": [0.93, 0.93, 0.96, 0.95],
-            "Precision": [0.93, 0.93, 0.94, 0.84],
-            "Recall": [0.92, 0.92, 0.97, 0.94],
-            "F1": [0.93, 0.93, 0.96, 0.89],
+            "Accuracy": [0.93, 0.91, 0.96, 0.96],
+            "Precision": [0.93, 0.73, 0.94, 0.96],
+            "Recall": [0.92, 0.87, 0.97, 0.97],
+            "F1": [0.93, 0.80, 0.96, 0.96],
             "Training samples": ["30 K", "30 K", "30 K", "21 K"],
             "Latency": ["< 5 ms", "< 10 ms", "200–400 ms", "200–400 ms"],
         }
     ).set_index("Model")
 
-    st.dataframe(
-        df.style.highlight_max(
-            subset=["Accuracy", "Precision", "Recall", "F1"],
-            props="background-color:#0e4d3a; color:#7fffd4; font-weight:700;",
-        ),
-        use_container_width=True,
-    )
+    st.dataframe(df, use_container_width=True)
     st.caption(
         "All metrics on the held-out test set (15 % of balanced dataset, 30 K rows, 1:1 class ratio). "
         "Metrics shown for the **depressed class (label = 1)**."
