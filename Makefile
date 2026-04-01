@@ -7,26 +7,59 @@ DASHBOARD_IMAGE ?= mental-health-dashboard
 API_SERVICE ?= mental-health-app
 DASHBOARD_SERVICE ?= mental-health-dashboard
 
-.PHONY: help test test-data-cleaning test-api test-dashboard test-training train-xgboost docker-build-api docker-build-dashboard cloud-run-deploy cloud-run-deploy-dashboard docker-run-local deploy-all
+IMAGE   = europe-west1-docker.pkg.dev/mental-health-signal-detector/mental-health-api/api:latest
+SERVICE = mental-health-api
+REGION  = europe-west1
+
+.PHONY: help test test-data-cleaning test-api test-dashboard test-training \
+        docker-build docker-deploy cloud-deploy
 
 help:
 	@echo "Available targets:"
-	@echo "  make test                    Run all tests"
-	@echo "  make test-data-cleaning      Run data cleaning tests"
-	@echo "  make test-api                Run API tests"
-	@echo "  make test-dashboard          Run dashboard tests"
-	@echo "  make test-training           Run training tests"
-	@echo "  make train-xgboost           Train only the XGBoost model"
 	@echo ""
-	@echo "Docker targets:"
-	@echo "  make docker-build-api        Build API Docker image"
-	@echo "  make docker-build-dashboard  Build Dashboard Docker image"
-	@echo "  make docker-run-local        Run both services locally with docker-compose"
-	@echo "  make deploy-all              Build, push and deploy API + Dashboard"
+	@echo "  Tests:"
+	@echo "  make test                 Run all tests"
+	@echo "  make test-data-cleaning   Run data cleaning tests"
+	@echo "  make test-api             Run API tests"
+	@echo "  make test-dashboard       Run dashboard tests"
+	@echo "  make test-training        Run training tests"
 	@echo ""
-	@echo "Cloud Run targets:"
-	@echo "  make cloud-run-deploy            Deploy API to Google Cloud Run"
-	@echo "  make cloud-run-deploy-dashboard  Deploy Dashboard to Google Cloud Run"
+	@echo "  Deployment:"
+	@echo "  make docker-build         Build image locally (native arch — for local testing)"
+	@echo "  make docker-deploy        Build for linux/amd64 locally and deploy to Cloud Run"
+	@echo "  make cloud-deploy         Build and deploy entirely on GCP (no local Docker needed)"
+
+# ── Deployment ────────────────────────────────────────────────────────────────
+
+# 1. Build image locally using native architecture (arm64 on Apple Silicon).
+#    Use this only for local testing — do NOT push this image to the registry.
+docker-build:
+	docker build -f docker/Dockerfile.api -t $(IMAGE) .
+
+# 2. Build for linux/amd64 (Cloud Run architecture) on your local machine and
+#    push + deploy. Handles the arm64 → amd64 cross-compilation automatically.
+#    Requires: docker buildx, gcloud auth configure-docker europe-west1-docker.pkg.dev
+docker-deploy:
+	docker buildx build \
+		--platform linux/amd64 \
+		-f docker/Dockerfile.api \
+		-t $(IMAGE) \
+		--push \
+		.
+	gcloud run deploy $(SERVICE) \
+		--image $(IMAGE) \
+		--region $(REGION) \
+		--platform managed \
+		--memory 4Gi \
+		--cpu 2 \
+		--timeout 300
+
+# 3. Build and deploy entirely on GCP — no local Docker needed.
+#    Cloud Build handles the build on linux/amd64 machines and deploys to Cloud Run.
+cloud-deploy:
+	gcloud builds submit --config cloudbuild.yaml .
+
+# ── Tests ─────────────────────────────────────────────────────────────────────
 
 test:
 	$(PYTEST) tests -q

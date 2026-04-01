@@ -7,7 +7,7 @@ class PredictionRequest(BaseModel):
     """Request model for prediction endpoint."""
 
     text: str
-    model_type: Literal["lr", "distilbert", "roberta", "xgboost"] = "lr"
+    model_type: Literal["lr", "distilbert", "mental_roberta", "mentalbert", "roberta", "xgboost"] = "lr"
 
 
 class PredictionResponse(BaseModel):
@@ -15,7 +15,3 @@ class PredictionResponse(BaseModel):
 
     label: int
     probability: float
-    source_language: str = "unknown"
-    analysis_language: str = "en"
-    was_translated: bool = False
-    translated_text: str | None = None

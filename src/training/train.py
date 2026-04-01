@@ -22,7 +22,7 @@ def load_and_prepare_data(load_data_fn=None, clean_data_fn=None, preprocess_fn=N
         preprocess_fn = preprocess.preprocess_text
 
     df = load_data_fn()
-    df_cleaned = clean_data_fn(df)
+    df_cleaned = df  # clean_data_fn(df)
     df_cleaned["title"] = df_cleaned["title"].apply(preprocess_fn)
     X = df_cleaned["title"]
     y = df_cleaned["label"]

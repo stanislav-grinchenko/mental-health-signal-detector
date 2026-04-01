@@ -1,14 +1,49 @@
-from fastapi import FastAPI
-from fastapi import HTTPException
+from contextlib import asynccontextmanager
+
+from fastapi import BackgroundTasks, FastAPI, HTTPException
 
 import src.api.services as services
-from src.api.schemas import PredictionRequest, PredictionResponse
+from src.api.database import get_stats, init_db, log_prediction
+from src.api.schemas import ExplainRequest, ExplainResponse, PredictionRequest, PredictionResponse, StatsResponse
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialise DB tables on startup."""
+    init_db()
+    yield
+
 
 app = FastAPI(
     title="Mental Health Signal Detector API",
     description="API for detecting mental health signals in text using machine learning models.",
     version="1.0.0",
+    lifespan=lifespan,
 )
+
+_RISK_THRESHOLDS = (0.33, 0.66)
+
+
+def _risk_level(probability: float) -> str:
+    if probability < _RISK_THRESHOLDS[0]:
+        return "low"
+    if probability < _RISK_THRESHOLDS[1]:
+        return "medium"
+    return "high"
+
+
+@app.get("/")
+def root():
+    """Root endpoint with quick API usage hints."""
+    return {
+        "message": "Mental Health Signal Detector API",
+        "endpoints": {
+            "health": "/health",
+            "predict": "POST /predict",
+            "explain": "POST /explain",
+            "stats": "GET /stats",
+        },
+    }
 
 
 @app.get("/health")
@@ -36,14 +71,36 @@ def distilbert_diagnostics(load_model: bool = False):
 
 
 @app.post("/predict")
-def predict(request: PredictionRequest) -> PredictionResponse:
+def predict(request: PredictionRequest, background_tasks: BackgroundTasks) -> PredictionResponse:
     """Endpoint to predict mental health signals from input text."""
+    result = services.predict(request.text, request.model_type)
+    background_tasks.add_task(
+        log_prediction,
+        request.text,
+        request.model_type,
+        result["label"],
+        result["probability"],
+        _risk_level(result["probability"]),
+    )
+    return PredictionResponse(**result)
+
+
+@app.post("/explain")
+def explain(request: ExplainRequest) -> ExplainResponse:
+    """Endpoint to predict and return word-level explanation details."""
     try:
-        result = services.predict(request.text, request.model_type)
-        return PredictionResponse(**result)
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=503, detail=f"Model artifact missing: {exc}") from exc
+        result = services.explain(
+            text=request.text,
+            model_type=request.model_type,
+            threshold=request.threshold,
+            max_tokens=request.max_tokens,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=500, detail=f"Prediction failed ({request.model_type}): {exc}") from exc
+    return ExplainResponse(**result)
+
+
+@app.get("/stats")
+def stats() -> StatsResponse:
+    """Return aggregated prediction statistics from the database."""
+    return StatsResponse(**get_stats())

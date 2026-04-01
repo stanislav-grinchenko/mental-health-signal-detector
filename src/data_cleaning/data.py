@@ -5,7 +5,7 @@ import pandas as pd
 
 import src.common.config as config
 
-DATA_FILENAME = "reddit_depression_dataset.csv"
+DATA_FILENAME = "balanced_dataset_30k.csv"
 
 
 def _get_project_data_dir() -> Path:
