@@ -10,7 +10,10 @@ ENV PYTHONPATH=/app
 COPY requirements.txt .
 # Install CPU-only PyTorch first to avoid ~1.5GB of unused CUDA libraries (Cloud Run has no GPU)
 RUN pip install --no-cache-dir torch==2.10.0 --index-url https://download.pytorch.org/whl/cpu
-RUN pip install --no-cache-dir -r requirements.txt
+# Strip CUDA/Triton packages from the lockfile — Cloud Run has no GPU and
+# the CPU-only torch above already satisfies the torch requirement.
+RUN grep -vE "^(nvidia-|cuda-|triton)" requirements.txt > /tmp/requirements_cpu.txt && \
+    pip install --no-cache-dir -r /tmp/requirements_cpu.txt
 RUN python -m nltk.downloader stopwords wordnet averaged_perceptron_tagger averaged_perceptron_tagger_eng punkt punkt_tab
 
 COPY src/ ./src/
@@ -22,7 +25,4 @@ USER appuser
 
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
-
-CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn src.api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
