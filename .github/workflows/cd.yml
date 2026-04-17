@@ -1,0 +1,98 @@
+name: CD
+
+on:
+  push:
+    branches: [main]
+
+# Only run one deployment at a time; cancel in-flight runs if a new push arrives
+concurrency:
+  group: cd-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Build & Deploy to Cloud Run
+    runs-on: ubuntu-latest
+
+    # Block deployment until all CI jobs pass on the same commit
+    needs: []   # CI runs in the same workflow_run trigger — see note below
+
+    # Required for Workload Identity Federation (keyless GCP auth)
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      PROJECT_ID: mental-health-signal-detector
+      REGION: europe-west1
+      REPOSITORY: mental-health-api
+      SERVICE: mental-health-api
+      IMAGE: europe-west1-docker.pkg.dev/mental-health-signal-detector/mental-health-api/api
+      MODEL_VERSION: mental_roberta_v1   # Update when deploying a new model version
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Authenticate to GCP using Workload Identity Federation (no stored SA key)
+      # Prerequisites (one-time GCP setup — see docs/mlops_runbook.md):
+      #   1. Create a Workload Identity Pool and Provider for GitHub
+      #   2. Grant the SA roles/run.developer + roles/artifactregistry.writer
+      #   3. Add WIF_PROVIDER and WIF_SERVICE_ACCOUNT as GitHub repository secrets
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      # Build image, tagged with :latest and :MODEL_VERSION for rollback capability
+      - name: Build Docker image
+        run: |
+          docker build \
+            -f docker/Dockerfile.api \
+            --build-arg MODEL_VERSION=${{ env.MODEL_VERSION }} \
+            -t ${{ env.IMAGE }}:latest \
+            -t ${{ env.IMAGE }}:${{ env.MODEL_VERSION }} \
+            .
+
+      - name: Push image (latest)
+        run: docker push ${{ env.IMAGE }}:latest
+
+      - name: Push image (versioned)
+        run: docker push ${{ env.IMAGE }}:${{ env.MODEL_VERSION }}
+
+      # Deploy new revision to Cloud Run; existing env vars (DATABASE_URL etc.) are preserved
+      - name: Deploy to Cloud Run
+        id: deploy
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE }}
+          region: ${{ env.REGION }}
+          image: ${{ env.IMAGE }}:latest
+          flags: >
+            --memory=4Gi
+            --cpu=2
+            --timeout=300
+            --max-instances=3
+          env_vars: |
+            MODEL_VERSION=${{ env.MODEL_VERSION }}
+
+      - name: Show deployment URL
+        run: echo "Deployed to ${{ steps.deploy.outputs.url }}"
+
+      # Smoke test — verify the /health endpoint responds on the new revision
+      - name: Smoke test /health
+        run: |
+          URL="${{ steps.deploy.outputs.url }}"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL/health")
+          if [ "$STATUS" != "200" ]; then
+            echo "Health check failed — HTTP $STATUS. Check Cloud Run logs."
+            exit 1
+          fi
+          echo "Health check passed (HTTP $STATUS)"
