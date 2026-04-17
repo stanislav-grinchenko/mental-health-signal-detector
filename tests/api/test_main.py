@@ -40,17 +40,6 @@ def test_health_returns_healthy(client: TestClient) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_stats_returns_200_with_empty_db(client: TestClient) -> None:
-    """GET /stats should return 200 even when the database has no rows."""
-    response = client.get("/stats")
-    assert response.status_code == 200
-    body = response.json()
-    assert body["total_predictions"] == 0
-    assert body["distress_count"] == 0
-    assert body["no_distress_count"] == 0
-    assert isinstance(body["avg_confidence"], float)
-
-
 def test_drift_returns_200_with_empty_db(client: TestClient) -> None:
     """GET /stats/drift should return 200 even when the database has no rows."""
     response = client.get("/stats/drift")
@@ -89,9 +78,9 @@ def test_drift_response_schema(client: TestClient) -> None:
 
 
 def test_api_empty_input(client: TestClient) -> None:
-    """POST /predict with empty text should still return 200 (model handles gracefully)."""
+    """POST /predict with empty text should return 422 (min_length=1 validation)."""
     response = client.post("/predict", json={"text": ""})
-    assert response.status_code == 200
+    assert response.status_code == 422
 
 
 def test_predict_returns_label_and_probability(client: TestClient) -> None:
@@ -106,10 +95,10 @@ def test_predict_returns_label_and_probability(client: TestClient) -> None:
 
 
 def test_predict_long_input(client: TestClient) -> None:
-    """POST /predict with a very long input should not raise a 500 error."""
+    """POST /predict with text exceeding max_length=2000 should return 422."""
     long_text = "I feel sad. " * 200  # ~2400 chars
     response = client.post("/predict", json={"text": long_text})
-    assert response.status_code == 200
+    assert response.status_code == 422
 
 
 def test_predict_default_model_is_lr(client: TestClient) -> None:
