@@ -1,3 +1,4 @@
+#only for local development and testing; not used in production deployment
 services:
   api:
     build:
