@@ -61,6 +61,14 @@ def render_stats_page(api_url: str) -> None:
             st.error(f"Could not fetch stats from API: {exc}")
             return
 
+    drift: dict | None = None
+    try:
+        drift_response = requests.get(f"{api_url}/stats/drift", timeout=10)
+        drift_response.raise_for_status()
+        drift = drift_response.json()
+    except requests.exceptions.RequestException:
+        pass  # Drift section will be skipped gracefully
+
     total = data["total_predictions"]
 
     if total == 0:
@@ -224,3 +232,94 @@ def render_stats_page(api_url: str) -> None:
             .configure_view(stroke=None)
         )
         st.altair_chart(trend_chart, use_container_width=True)
+
+    # ── Model health / drift check ────────────────────────────────────────────
+    if drift is not None:
+        st.markdown("<br/>", unsafe_allow_html=True)
+        st.markdown('<p class="section-title">Model Health</p>', unsafe_allow_html=True)
+
+        drift_detected: bool = drift.get("drift_detected", False)
+        badge_color = "#e74c3c" if drift_detected else "#2ecc71"
+        badge_text = "Drift Detected" if drift_detected else "No Drift"
+        threshold_pct = drift.get("drift_threshold", 0.05) * 100
+        st.markdown(
+            f"""
+            <div style="display:inline-block;background:{badge_color};color:#ffffff;
+                        font-weight:700;font-size:0.9rem;border-radius:999px;
+                        padding:0.35rem 1rem;margin-bottom:1rem;">
+                {badge_text}
+            </div>
+            <span style="color:#7fa8c4;font-size:0.8rem;margin-left:0.75rem;">
+                Flags when |7-day confidence − all-time baseline| &gt; {threshold_pct:.0f}%
+            </span>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        baseline_conf = drift.get("baseline_confidence", 0.0)
+        recent_conf = drift.get("recent_confidence", 0.0)
+        delta = drift.get("confidence_delta", 0.0)
+        baseline_distress = drift.get("baseline_distress_rate", 0.0)
+        recent_distress = drift.get("recent_distress_rate", 0.0)
+        recent_count = drift.get("recent_predictions_count", 0)
+
+        d1, d2, d3, d4 = st.columns(4)
+        d1.markdown(_metric_card("Baseline Confidence", f"{baseline_conf:.1%}", "all-time avg"), unsafe_allow_html=True)
+        d2.markdown(_metric_card("Recent Confidence", f"{recent_conf:.1%}", "last 7 days"), unsafe_allow_html=True)
+        delta_sign = "+" if delta >= 0 else ""
+        d3.markdown(_metric_card("Confidence Delta", f"{delta_sign}{delta:.1%}", "recent − baseline"), unsafe_allow_html=True)
+        d4.markdown(_metric_card("Recent Predictions", f"{recent_count:,}", "last 7 days"), unsafe_allow_html=True)
+
+        st.markdown("<br/>", unsafe_allow_html=True)
+        col_dr, col_mc = st.columns(2)
+
+        with col_dr:
+            st.markdown('<p class="section-title">Distress Rate — Baseline vs Recent</p>', unsafe_allow_html=True)
+            dr_df = pd.DataFrame(
+                {
+                    "Window": ["All-time Baseline", "Last 7 Days"],
+                    "Distress Rate": [baseline_distress, recent_distress],
+                }
+            )
+            dr_chart = (
+                alt.Chart(dr_df)
+                .mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4)
+                .encode(
+                    x=alt.X("Window:N", axis=alt.Axis(labelAngle=0, **{k: v for k, v in _AXIS.items() if k != "gridColor"})),
+                    y=alt.Y("Distress Rate:Q", axis=alt.Axis(format="%", **_AXIS), scale=alt.Scale(domain=[0, 1])),
+                    color=alt.Color(
+                        "Window:N",
+                        scale=alt.Scale(domain=["All-time Baseline", "Last 7 Days"], range=["#0ec7e6", "#e74c3c"]),
+                        legend=None,
+                    ),
+                    tooltip=[alt.Tooltip("Window:N"), alt.Tooltip("Distress Rate:Q", format=".1%")],
+                )
+                .properties(height=260, background=_BG)
+                .configure_view(stroke=None)
+            )
+            st.altair_chart(dr_chart, use_container_width=True)
+
+        with col_mc:
+            model_conf_7d: dict = drift.get("model_confidence_7d", {})
+            if model_conf_7d:
+                st.markdown('<p class="section-title">Per-Model Confidence — Last 7 Days</p>', unsafe_allow_html=True)
+                mc_df = pd.DataFrame(
+                    [
+                        {"Model": _MODEL_DISPLAY_NAMES.get(k, k.upper()), "Confidence": v}
+                        for k, v in sorted(model_conf_7d.items(), key=lambda x: -x[1])
+                    ]
+                )
+                mc_chart = (
+                    alt.Chart(mc_df)
+                    .mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4, color=_MODEL_COLOR)
+                    .encode(
+                        x=alt.X("Model:N", sort="-y", axis=alt.Axis(labelAngle=0, **{k: v for k, v in _AXIS.items() if k != "gridColor"})),
+                        y=alt.Y("Confidence:Q", axis=alt.Axis(format="%", **_AXIS), scale=alt.Scale(domain=[0, 1])),
+                        tooltip=[alt.Tooltip("Model:N"), alt.Tooltip("Confidence:Q", format=".1%")],
+                    )
+                    .properties(height=260, background=_BG)
+                    .configure_view(stroke=None)
+                )
+                st.altair_chart(mc_chart, use_container_width=True)
+            else:
+                st.caption("No per-model confidence data for the last 7 days.")
